@@ -1,27 +1,16 @@
 #!/bin/python3
+from server.models import ListenerModel
+from server.server import CrystalServer
 from lib.helpers.encoder import powershell_encode
 import jinja2
-from lib.listeners.http import Listener
-from lib.helpers.output import failure, get_random_string, success
+from lib.helpers.output import Color, failure, get_random_string, show_options, success
 import os, sys
-import random, base64
+import random, requests
 from cmd import Cmd
-
-api_base = 'http://127.0.0.1:9292'
-
-NC = '\033[0m' # no colour
-WB = '\033[1m' # White bold
-R  = '\033[31m' # red
-G  = '\033[32m' # green
-O  = '\033[33m' # orange
-B  = '\033[96m' # cyan blue
-W  = '\033[97m' # white
-P  = '\033[35m' # purple
-
 
 def get_banner():
     banners = [
-        f"""{P}
+        f"""{Color.P}
                               __         .__   
   ___________ ___.__. _______/  |______  |  |  
 _/ ___\_  __ <   |  |/  ___/\   __\__  \ |  |  
@@ -32,7 +21,34 @@ _/ ___\_  __ <   |  |/  ___/\   __\__  \ |  |
     ]
 
     subline = "\ncrystal C2 v0.0.1\n"
-    return f"{random.choice(banners)}{B}{subline}{NC}"
+    return f"{random.choice(banners)}{Color.B}{subline}{Color.NC}"
+
+API_BASE = "http://127.0.0.1:9292" # TODO read from config
+
+class Api:
+    @staticmethod
+    def get_listeners():
+        listeners = requests.get(f'{API_BASE}/api/listeners').json()['data']
+        return listeners
+
+    @staticmethod
+    def create_listener(listen_ip="127.0.0.1", port=1337, name=""):
+        if name == "":
+            name = get_random_string(8)
+
+        response = requests.post(
+            f'{API_BASE}/api/listeners',
+            data={
+                "name": name,
+                "ip_address": listen_ip,
+                "port": port
+            }
+        )
+        
+        if response.status_code == 500:
+            raise ValueError('The listener could not be created.') # TODO create exception class
+        else:
+            return response
 
 
 class BaseConsole(Cmd):
@@ -48,6 +64,18 @@ class BaseConsole(Cmd):
     def help_exit(self):
         print("Exit the console.")
         print("You can also use the Ctrl-D shortcut.")
+
+    def do_listeners(self, args):
+        """
+        List all listeners
+        """
+        print("IP\t\tPort\tName")
+        print("----------------------------------")
+        for l in Api.get_listeners():
+            print(f"{l['ip_address']}\t{l['port']}\t{l['name']}")
+
+    def help_listeners(self, args):
+        print("List all listeners")
 
     # emulate system shell
     # --------------------------
@@ -74,18 +102,29 @@ class BaseConsole(Cmd):
         if self.encapsulatingConsole:
             self.encapsulatingConsole.cmdloop()
         else:
-            print(f"{R}[!]{NC} Type 'exit' to exit.")
+            print(f"{Color.R}[!]{Color.NC} Type 'exit' to exit.")
 
 
 class StagerConsole(BaseConsole):
-    prompt = f"({B}crystal{NC}) {G}createstager{NC} > "
+    prompt = f"({Color.B}crystal{Color.NC}) {Color.G}createstager{Color.NC} > "
     
     options = {
         "listener": "",
     }
 
+    def do_options(self, args):
+        show_options(self.options)
+    
+    def help_options(self, args):
+        print("Show available options")
+
     def do_set(self, option):
-        pass    # TODO set listener, generate encoded and obfuscated payload for that listener in a separate console
+        try:
+            option, value = option.split()
+            if option in self.options.keys() and value != '':
+                self.options[option] = value
+        except:
+            print("Usage: set OPTION VALUE")
 
     def complete_set(self, text, line, begidx, endidx):
         return [option for option in self.options if option.startswith(text)]
@@ -94,7 +133,7 @@ class StagerConsole(BaseConsole):
         # read in powershell agent template
         templateLoader = jinja2.FileSystemLoader(searchpath="./lib/agents")
         templateEnv = jinja2.Environment(loader=templateLoader)
-        TEMPLATE_FILE = "powershell.ps1"
+        TEMPLATE_FILE = "agent.ps1"
         template = templateEnv.get_template(TEMPLATE_FILE)
 
         # render with listeners ip and port
@@ -114,7 +153,7 @@ class CrystalConsole(BaseConsole):
     """
     Main console
     """
-    prompt = f"({B}crystal{NC}) > "
+    prompt = f"({Color.B}crystal{Color.NC}) > "
 
     # print banner
     def do_banner(self, args):
@@ -123,16 +162,14 @@ class CrystalConsole(BaseConsole):
     def help_banner(self):
         print("Show a random banner")
 
-
     # create listener
     def do_createlistener(self, args):
-        name = get_random_string(8)
-        listener = Listener(name) # TODO set port, ip
+        # TODO port, ip etc in subconsole
         try:
-            listener.run_as_daemon()
-            success(f"Listener {listener.name} listening on {listener.ipaddress}:{listener.port}")
-        except OSError as err:
-            failure(f"Could not create listener due to error: {err}.")
+            created = Api.create_listener() 
+            success(f"Listener {created['name']} listening on {created['ipaddress']}:{created['port']}")
+        except ValueError as e:
+            failure(e)
             
     def help_createlistener(self):
         print("Create a listener")
@@ -154,7 +191,10 @@ if __name__ == '__main__':
     print(get_banner())
 
     if sys.argv[1] == "server":
-        CrystalServer().run()
+        CrystalServer().cmdloop()
 
     elif sys.argv[1] == "client":
         CrystalConsole().cmdloop()
+
+    else:
+        print("Usage: crystalc2 [server | client]")

