@@ -43,6 +43,8 @@ class CrystalServer(Cmd):
         
         printinfo(f"Server running on port {self.port}")
 
+        # TODO: recreate listener in db
+
     # =======================================================================
     # API
 
