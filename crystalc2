@@ -1,4 +1,5 @@
 #!/bin/python3
+from server.models import ListenerModel
 from typing import List
 from server.server import AgentModule, CrystalServer
 from lib.helpers.output import Color, failure, get_random_string, printinfo, success
@@ -29,8 +30,16 @@ class Api:
         """
         Get a list of available agent modules
         """
-        available_agents = requests.get(f'{API_BASE}/api/agents/modules').json()['data']
-        return available_agents
+        available_agent_modules = requests.get(f'{API_BASE}/api/agents/modules').json()['data']
+        return available_agent_modules
+
+    @staticmethod
+    def get_active_agents():
+        """
+        Get all currently active agents
+        """
+        agents = requests.get(f'{API_BASE}/api/agents').json()['data']
+        return agents
 
     @staticmethod
     def get_listeners():
@@ -43,7 +52,7 @@ class Api:
     @staticmethod
     def create_listener(listen_ip="127.0.0.1", port=1337, name=""):
         """
-        Create a new listener
+        Create a new listener and return that listener as JSON if successfull
         """
         if name == "":
             name = get_random_string(8)
@@ -64,6 +73,9 @@ class Api:
 
 
 class BaseConsole(Cmd):
+    """
+    Base console. All commands defined here are available in every console
+    """
     emptyline = lambda x: None
 
     def __init__(self, encapsulating_console = None):
@@ -91,6 +103,25 @@ class BaseConsole(Cmd):
     def help_exit(self):
         print("Exit the console. You can also use the Ctrl-D shortcut")
 
+    def do_interact(self, agent_name):
+        'Interact with an active agent'
+        for a in Api.get_active_agents():
+            if a["name"] == agent_name: 
+                InteractAgentConsole(a, self).cmdloop()
+                return
+        
+        failure(f"{agent_name} is not an active agent name")
+
+    def complete_interact(self, text, line, begidx, endidx):
+        return [a['name'] for a in Api.get_active_agents() if a['name'].startswith(text)]
+
+    def do_agents(self, args):
+        'List all agents'
+        print("IP\t\tName\tUser")
+        print("----------------------------------")
+        for l in Api.get_active_agents():
+            print(f"{l['ip_address']}\t{l['name']}\t{l['hostname']}\t{l['username']}") # TODO info about session
+
     def do_listeners(self, args):
         'List all listeners'
         print("IP\t\tPort\tName")
@@ -108,9 +139,16 @@ class BaseConsole(Cmd):
         else:
             print(f"{Color.R}[!]{Color.NC} Type 'exit' to exit.")
 
+class InteractAgentConsole(BaseConsole):
+    def __init__(self, selected_agent, encapsulating_console: Cmd):
+        super().__init__(encapsulating_console)
+        self.selected_agent = selected_agent
+        self.prompt = f"({Color.B}crystal{Color.NC}) {selected_agent['name']} -> {Color.G}{selected_agent['username']}{Color.NC}@{Color.G}{selected_agent['ip_address']}{Color.NC} > "
 
-class AgentConsole(BaseConsole):
-    def __init__(self, selected_agent: str, encapsulating_console: Cmd):
+    # TODO
+
+class CreateAgentConsole(BaseConsole):
+    def __init__(self, selected_agent, encapsulating_console: Cmd):
         super().__init__(encapsulating_console)
         self.selected_agent = selected_agent
         self.prompt = f"({Color.B}crystal{Color.NC}) {Color.G}agent/{selected_agent['name']}{Color.NC} > "
@@ -191,7 +229,7 @@ class CrystalConsole(BaseConsole):
             # pass agent to subconsole to access options etc
             for agent in Api.get_available_agents():
                 if agent['name'] == selected_agent:
-                    AgentConsole(agent, self).cmdloop()
+                    CreateAgentConsole(agent, self).cmdloop()
     
     def complete_createagent(self, text, line, begidx, endidx):
         return [agent['name'] for agent in Api.get_available_agents() if agent['name'].startswith(text)]

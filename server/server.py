@@ -100,7 +100,7 @@ class CrystalServer(Cmd):
                 HttpListener(l.name, l.ip_address, l.port).run_as_daemon()
 
         success("Starting server")
-        t = threading.Thread(target = api.run, kwargs={"port":9292})
+        t = threading.Thread(target = api.run, kwargs={"host":"0.0.0.0","port":9292})
         t.start() 
         
         printinfo(f"Server running on port {self.port}")
@@ -122,6 +122,37 @@ def available_agents():
         'data': [a.serialized for a in available_agents]
     })
 
+@api.route("/api/agents", methods=["GET", "POST"])
+def active_agents():
+    """
+    GET: Get all active agents
+    POST: Add a registered agent to the db
+    """
+    if flask.request.method == "GET":
+
+        agents = AgentModel.query.order_by(AgentModel.id).all()
+        return flask.jsonify({
+            'data': [a.serialized for a in agents]
+        })
+
+    if flask.request.method == "POST":
+
+        name = flask.request.form.get('name')
+        ip_address = flask.request.form.get('ip_address')
+        username = flask.request.form.get('username')
+        hostname = flask.request.form.get('hostname')
+
+        db.session.add(AgentModel(
+            name,
+            ip_address,
+            username,
+            hostname
+        ))
+        db.session.commit()
+
+        created = AgentModel.query.filter_by(name=name).first()
+
+        return created.serialized
 
 @api.route("/api/listeners", methods=["GET", "POST"])
 def active_listeners():

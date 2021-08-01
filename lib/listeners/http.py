@@ -1,4 +1,5 @@
-from lib.helpers.output import get_random_string, success
+import requests
+from lib.helpers.output import Color, get_random_string, success
 import flask, logging, sys
 import threading
 
@@ -23,10 +24,23 @@ class HttpListener:
         """
         name     = get_random_string(8)
         remoteip = flask.request.remote_addr
-        hostname = flask.request.form.get("name")
+        hostname = flask.request.form.get("hname")
+        username = flask.request.form.get("uname")
 
-        success(f"Agent {name} checked in", newline=True)
+        success(f"Agent {name} checked in: {Color.B}{username}@{hostname}", newline=True)
+
+        # register to database
+        requests.post(
+            f'http://127.0.0.1:9292/api/agents', # TODO read from config
+            data={
+                "name": name,
+                "ip_address": remoteip,
+                "username": username,
+                "hostname": hostname
+            }
+        )
         
+        # return the name for the agent to know its name
         return (name, 200)
 
 
@@ -54,7 +68,7 @@ class HttpListener:
     def __run(self):
         log = logging.getLogger('werkzeug')
         log.level = logging.ERROR
-        app.run(port=self.port, host=self.ipaddress)
+        app.run(port=self.port, host="0.0.0.0") #TODO: host=self.ipaddress)
 
     def run_as_daemon(self):
         """
