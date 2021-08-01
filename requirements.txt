@@ -1,0 +1,6 @@
+flask_migrate
+flask_sqlalchemy
+Flask
+Jinja2
+requests
+pyyaml
