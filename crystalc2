@@ -52,7 +52,7 @@ class Api:
         return listeners
 
     @staticmethod
-    def create_listener(listen_ip="127.0.0.1", port=1337, name=""):
+    def create_listener(listen_ip="0.0.0.0", port=1337, name=""):
         """
         Create a new listener and return that listener as JSON if successfull
         """

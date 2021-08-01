@@ -13,7 +13,7 @@ def generate_payload():
 
     # render template with listeners ip and port
     agent_payload = template.render(
-        LISTENER_IP="127.0.0.1", # TODO: read from options
+        LISTENER_IP="0.0.0.0", # TODO: read from options
         LISTENER_PORT=1337            
     )
 

