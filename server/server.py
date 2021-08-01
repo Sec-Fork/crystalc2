@@ -72,22 +72,27 @@ class CrystalServer(Cmd):
             ip_address = flask.request.form.get('ip_address')
             port = flask.request.form.get('port')
 
-            listener = HttpListener(name, ip_address, port)
-
-            try:
-                listener.run_as_daemon()
-            except:
+            # check if listener with same ip and port exists
+            if ListenerModel.query.filter_by(ip_address=ip_address, port=port).first():
                 raise InternalServerError
+            else:
+                listener = HttpListener(name, ip_address, port)
 
-            try:
-                db.session.add(ListenerModel(
-                    name,
-                    ip_address,
-                    port
-                ))
-                db.session.commit()
-                return flask.jsonify({
-                    ListenerModel.serialized
-                })
-            except:
-                raise InternalServerError
+                try:
+                    listener.run_as_daemon()
+                except:
+                    raise InternalServerError
+
+                try:
+                    db.session.add(ListenerModel(
+                        name,
+                        ip_address,
+                        port
+                    ))
+                    db.session.commit()
+
+                    created = ListenerModel.query.filter_by(ip_address=ip_address, port=port).first()
+
+                    return created.serialized
+                except OSError:
+                    raise InternalServerError

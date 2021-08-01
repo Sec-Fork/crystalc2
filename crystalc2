@@ -58,6 +58,21 @@ class BaseConsole(Cmd):
         super().__init__()
         self.encapsulatingConsole = encapsulatingConsole
 
+    def cmdloop(self):
+        try:
+            Cmd.cmdloop(self)
+
+        except KeyboardInterrupt as e:
+            try:
+                choice = input(f"\n{Color.R}[!]{Color.NC} Exit? [y/N]")
+                if choice.lower() != "" and choice.lower()[0] == "y":
+                    sys.exit(0)
+                else:
+                    self.cmdloop()
+            except KeyboardInterrupt as e:
+                print("")
+                self.cmdloop()
+
     def do_exit(self, inp):
         sys.exit(0)
 
@@ -77,22 +92,6 @@ class BaseConsole(Cmd):
     def help_listeners(self, args):
         print("List all listeners")
 
-    # emulate system shell
-    # --------------------------
-    def do_cd(self, inp):
-        if len(inp) > 0:
-            os.chdir(inp)
-            os.system('ls')
-
-    def help_cd(self):
-        print("Change working directory")
-        
-    def complete_cd(self, text, line, begidx, endidx):
-        return [i for i in os.listdir() if i.startswith(text)]
-
-    def default(self, inp):
-        os.system(inp)
-    # --------------------------
 
     do_EOF = do_exit
     help_EOF = help_exit
@@ -166,8 +165,9 @@ class CrystalConsole(BaseConsole):
     def do_createlistener(self, args):
         # TODO port, ip etc in subconsole
         try:
-            created = Api.create_listener() 
-            success(f"Listener {created['name']} listening on {created['ipaddress']}:{created['port']}")
+            response = Api.create_listener() 
+            created = response.json()
+            success(f"Listener {created['name']} listening on {created['ip_address']}:{created['port']}")
         except ValueError as e:
             failure(e)
             
