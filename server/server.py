@@ -1,24 +1,24 @@
 from cmd import Cmd
-from logging import WARNING
 import os, yaml
 import threading, werkzeug
 from yaml.loader import SafeLoader
 
-import flask
+import flask, sys
 from werkzeug.exceptions import InternalServerError
 from lib.helpers.output import Color, printinfo, success
 from server.models import *
 import sqlite3
 from flask_migrate import Migrate
 from lib.listeners.http import HttpListener
+import logging
 
-#cli = sys.modules['flask.cli']
-#cli.show_server_banner = lambda *x: None
 api = flask.Flask(__name__)
 api.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///../data/crystalc2.db" # TODO path
 api.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(api)
 migrate = Migrate(api, db)
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 class ListenerModule:
     def __init__(self, name, file):
@@ -64,17 +64,50 @@ def load_modules():
         available_listeners = [ListenerModule(data[a]["name"], data[a]["file"]) for a in data]
 
 class CrystalServer(Cmd):
-    prompt = f"({Color.B}crystal{Color.NC}) {Color.G}server{Color.NC} > "
-    port = 9292 # TODO read from config file
-
-    def __init__(self):
+    def __init__(self, port, ip="0.0.0.0"):
         super().__init__()
+        self.port = port
+        self.listen_ip = ip
+        self.prompt = f"({Color.B}crystal{Color.NC}) {Color.G}server{Color.NC} > "
         self.setup()
+
+    def do_exit(self, inp):
+        sys.exit(0) # TODO: shutdown
+
+    def help_exit(self):
+        print("Exit the console. You can also use the Ctrl-D shortcut")
+
+    do_EOF = do_exit
+    help_EOF = help_exit
+    emptyline = lambda x: None
+
+    def cmdloop(self):
+        try:
+            Cmd.cmdloop(self)
+
+        except KeyboardInterrupt as e:
+            try:
+                choice = input(f"\n{Color.R}[!]{Color.NC} Exit? [y/N]")
+                if choice.lower() != "" and choice.lower()[0] == "y":
+                    sys.exit(0)
+                else:
+                    self.cmdloop()
+            except KeyboardInterrupt as e:
+                print("")
+                self.cmdloop()
+
+    def do_agents(self, args):
+        'List all agents'
+        print("IP\t\tName\tHostname\tUser")
+        print("------------------------------------------------")
+        with api.app_context():
+            for a in AgentModel.query.order_by(AgentModel.id).all():
+                print(f"{a['ip_address']}\t{a['name']}\t{a['hostname']}\t{a['username']}") # TODO info about session
 
     def do_listeners(self, args):
         'List all listeners'
         print("IP\t\tPort\tName")
-        print("----------------------------------")
+        print("------------------------------------------------")
         with api.app_context():
             for l in ListenerModel.query.order_by(ListenerModel.id).all():
                 print(f"{l.ip_address}\t{l.port}\t{l.name}")
@@ -112,6 +145,42 @@ class CrystalServer(Cmd):
 @api.errorhandler(werkzeug.exceptions.InternalServerError)
 def handle_bad_request(e):
     return 'InternalServerError', 500
+
+@api.route("/api/tasks/<agent_name>", methods=['GET', 'POST'])
+def get_task(agent_name):
+    """
+    GET: get all unexecuted tasks for this agent
+    POST: add a task to this agent to the db 
+    """
+    if flask.request.method == "GET":
+
+        task = TaskModel.query.filter(TaskModel.executing_agent==agent_name, TaskModel.executed==False).first()
+        if task:
+            task.executed = True
+            db.session.commit()
+            return flask.jsonify({
+                'data': task.serialized
+            })
+        else:
+            return flask.jsonify({
+                'data': {
+                    'task': '' # no task queued 
+                }
+            })
+
+    if flask.request.method == "POST":
+
+        task = flask.request.form.get('task')
+
+        db.session.add(TaskModel(
+            agent_name,
+            task
+        ))
+        db.session.commit()
+
+        return flask.jsonify({
+            'success': True
+        })
 
 @api.route("/api/agents/modules", methods=["GET"])
 def available_agents():

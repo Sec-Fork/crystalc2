@@ -1,4 +1,6 @@
 #!/bin/python3
+import yaml
+from yaml.loader import SafeLoader
 from server.models import ListenerModel
 from typing import List
 from server.server import AgentModule, CrystalServer
@@ -22,7 +24,7 @@ _/ ___\_  __ <   |  |/  ___/\   __\__  \ |  |
     subline = "\ncrystal C2 v0.0.1\n"
     return f"{random.choice(banners)}{Color.B}{subline}{Color.NC}"
 
-API_BASE = "http://127.0.0.1:9292" # TODO read from config
+API_BASE = "http://127.0.0.1:9292" # default overwritten by config
 
 class Api:
     @staticmethod
@@ -71,6 +73,19 @@ class Api:
         else:
             return response
 
+    @staticmethod
+    def add_agent_task(agent_name, command):
+        """
+        Add a task to the agent supplied
+        """
+        requests.post(
+            f'{API_BASE}/api/tasks/{agent_name}',
+                data={
+                    "task": command
+                }
+        )
+
+
 
 class BaseConsole(Cmd):
     """
@@ -117,10 +132,10 @@ class BaseConsole(Cmd):
 
     def do_agents(self, args):
         'List all agents'
-        print("IP\t\tName\tUser")
+        print("IP\t\tName\tHostname\tUser")
         print("----------------------------------")
-        for l in Api.get_active_agents():
-            print(f"{l['ip_address']}\t{l['name']}\t{l['hostname']}\t{l['username']}") # TODO info about session
+        for a in Api.get_active_agents():
+            print(f"{a['ip_address']}\t{a['name']}\t{a['hostname']}\t{a['username']}") # TODO info about session
 
     def do_listeners(self, args):
         'List all listeners'
@@ -140,21 +155,34 @@ class BaseConsole(Cmd):
             print(f"{Color.R}[!]{Color.NC} Type 'exit' to exit.")
 
 class InteractAgentConsole(BaseConsole):
+    """
+    Console to interact with an agent
+    """
     def __init__(self, selected_agent, encapsulating_console: Cmd):
         super().__init__(encapsulating_console)
         self.selected_agent = selected_agent
         self.prompt = f"({Color.B}crystal{Color.NC}) {selected_agent['name']} -> {Color.G}{selected_agent['username']}{Color.NC}@{Color.G}{selected_agent['ip_address']}{Color.NC} > "
 
-    # TODO
+    def default(self, command):
+        'Default action: Send a shell command to run to the agents queue'
+        Api.add_agent_task(self.selected_agent['name'], f"shell {command}")
+        success(f"Queued command: {command} to agent {self.selected_agent['name']}")
+
+    def do_terminate(self, args):
+        'Terminate the agent'
+        raise NotImplementedError
 
 class CreateAgentConsole(BaseConsole):
+    """
+    Agent creation wizard
+    """
     def __init__(self, selected_agent, encapsulating_console: Cmd):
         super().__init__(encapsulating_console)
         self.selected_agent = selected_agent
         self.prompt = f"({Color.B}crystal{Color.NC}) {Color.G}agent/{selected_agent['name']}{Color.NC} > "
     
     options = {
-        "Listener" : {
+        "listener" : {
             "name": "listener",
             "required": True,
             "value": "",
@@ -242,8 +270,19 @@ if __name__ == '__main__':
 
     print(get_banner())
 
+    if sys.argv[1] not in ["server", "client"]:
+        print("Usage: crystalc2 [server | client]")
+        sys.exit(1)
+
+    success("Reading config from config.yaml")
+    with open("config.yaml") as f: 
+        data = yaml.load(f, Loader=SafeLoader)
+        LISTEN_PORT = data['listen_port']
+        LISTEN_IP   = data['listen_ip']
+        API_BASE    = data['api_base']
+
     if sys.argv[1] == "server":
-        CrystalServer().cmdloop()
+        CrystalServer(LISTEN_PORT, LISTEN_IP).cmdloop()
 
     elif sys.argv[1] == "client":
         try:
@@ -253,10 +292,9 @@ if __name__ == '__main__':
             sys.exit(1)
 
         success("Connected to server.")
-        printinfo(f"Found {len(active_listeners)} active listeners. Type 'listeners' to view them.")
+        if len(active_listeners):
+            printinfo(f"Found {len(active_listeners)} active listeners. Type 'listeners' to view them.")
         printinfo(f"Starting console...")
         print()
         CrystalConsole().cmdloop()
         
-    else:
-        print("Usage: crystalc2 [server | client]")

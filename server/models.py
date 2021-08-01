@@ -48,3 +48,27 @@ class AgentModel(db.Model):
             "username": self.username,
             "hostname": self.hostname
         }
+
+class TaskModel(db.Model):
+    """
+    Tasks for agents to execute
+    """
+    __tablename__ = "tasks"
+ 
+    id = db.Column(db.Integer, primary_key=True)
+    task = db.Column(db.String)
+    executing_agent = db.Column(db.String)
+    executed = db.Column(db.Boolean)
+
+    def __init__(self, executing_agent: str, task: str): 
+        self.executing_agent = executing_agent
+        self.task = task
+        self.executed = False
+
+    @property
+    def serialized(self):
+        return {
+            "task": self.task,
+            "executing_agent": self.executing_agent,
+            "executed": self.executed
+        }

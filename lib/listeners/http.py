@@ -31,7 +31,7 @@ class HttpListener:
 
         # register to database
         requests.post(
-            f'http://127.0.0.1:9292/api/agents', # TODO read from config
+            'http://127.0.0.1:9292/api/agents', # TODO read from config
             data={
                 "name": name,
                 "ip_address": remoteip,
@@ -61,7 +61,11 @@ class HttpListener:
         """
         Returns an agents tasks
         """
-        task = "" # TODO: read tasks
+        # get oldest task from db and return it to the agent to execute
+        r = requests.get(
+            f'http://127.0.0.1:9292/api/tasks/{name}', # TODO read url from config
+        )
+        task = r.json()['data']['task']
         return (task, 200)
 
 
