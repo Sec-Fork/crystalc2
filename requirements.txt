@@ -1,6 +1,6 @@
-flask_migrate
-flask_sqlalchemy
-Flask
-Jinja2
-requests
+Flask == 2.0.1
+requests == 2.22.0
+Flask-SocketIO==4.3.1
+python-engineio==3.13.2
+python-socketio==4.6.0
 pyyaml

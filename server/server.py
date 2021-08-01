@@ -10,7 +10,9 @@ from server.models import *
 import sqlite3
 from flask_migrate import Migrate
 from lib.listeners.http import HttpListener
-import logging
+import logging, time
+
+from flask_socketio import SocketIO, emit
 
 api = flask.Flask(__name__)
 api.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///../data/crystalc2.db" # TODO path
@@ -19,6 +21,8 @@ db.init_app(api)
 migrate = Migrate(api, db)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
+
+socketio = SocketIO(api)
 
 class ListenerModule:
     def __init__(self, name, file):
@@ -68,7 +72,7 @@ class CrystalServer(Cmd):
         super().__init__()
         self.port = port
         self.listen_ip = ip
-        self.prompt = f"({Color.B}crystal{Color.NC}) {Color.G}server{Color.NC} > "
+        self.prompt = f"\n({Color.B}crystal{Color.NC}) {Color.G}server{Color.NC} > "
         self.setup()
 
     def do_exit(self, inp):
@@ -102,7 +106,7 @@ class CrystalServer(Cmd):
         print("------------------------------------------------")
         with api.app_context():
             for a in AgentModel.query.order_by(AgentModel.id).all():
-                print(f"{a['ip_address']}\t{a['name']}\t{a['hostname']}\t{a['username']}") # TODO info about session
+                print(f"{a.ip_address}\t{a.name}\t{a.hostname}\t{a.username}") # TODO info about session
 
     def do_listeners(self, args):
         'List all listeners'
@@ -133,7 +137,7 @@ class CrystalServer(Cmd):
                 HttpListener(l.name, l.ip_address, l.port).run_as_daemon()
 
         success("Starting server")
-        t = threading.Thread(target = api.run, kwargs={"host":"0.0.0.0","port":9292})
+        t = threading.Thread(target = socketio.run, args=[api], kwargs={"host":"0.0.0.0","port":9292,"debug":False})
         t.start() 
         
         printinfo(f"Server running on port {self.port}")
@@ -142,9 +146,26 @@ class CrystalServer(Cmd):
 # =======================================================================
 # API
 
+@socketio.on('connect')
+def connected():
+    success("Socket connection received.", newline=True)
+
+# HTTP
 @api.errorhandler(werkzeug.exceptions.InternalServerError)
 def handle_bad_request(e):
     return 'InternalServerError', 500
+
+@api.route("/api/broadcast", methods=['POST'])
+def broadcast():
+    """
+    Broadcast a message to all connected clients
+    """
+    if flask.request.method == "POST":
+        msg = flask.request.form.get('msg')
+        socketio.emit('message', msg, broadcast=True)
+        return flask.jsonify({
+            'success': True
+        })
 
 @api.route("/api/tasks/<agent_name>", methods=['GET', 'POST'])
 def get_task(agent_name):
@@ -218,6 +239,8 @@ def active_agents():
             hostname
         ))
         db.session.commit()
+
+        socketio.emit('message', f"Agent {name} checked in: {Color.B}{username}@{hostname}", broadcast=True)
 
         created = AgentModel.query.filter_by(name=name).first()
 

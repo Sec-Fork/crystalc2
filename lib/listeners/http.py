@@ -28,8 +28,6 @@ class HttpListener:
         hostname = flask.request.form.get("hname")
         username = flask.request.form.get("uname")
 
-        success(f"Agent {name} checked in: {Color.B}{username}@{hostname}", newline=True)
-
         # register to database
         requests.post(
             'http://127.0.0.1:9292/api/agents', # TODO read from config
@@ -52,7 +50,12 @@ class HttpListener:
         """
         result = flask.request.form.get("result")
 
-        print(f"\n{result.strip()}")
+        requests.post(
+            'http://127.0.0.1:9292/api/broadcast', # TODO read url from config
+            data={
+                "msg": result.strip()
+            }
+        )
 
         return ('', 204)
 

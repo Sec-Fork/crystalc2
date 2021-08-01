@@ -1,4 +1,6 @@
 #!/bin/python3
+import threading
+import time
 import yaml
 from yaml.loader import SafeLoader
 from server.models import ListenerModel
@@ -8,6 +10,7 @@ from lib.helpers.output import Color, failure, get_random_string, printinfo, suc
 import os, sys
 import random, requests
 from cmd import Cmd
+from socketIO_client import SocketIO, LoggingNamespace
 
 def get_banner():
     banners = [
@@ -161,12 +164,13 @@ class InteractAgentConsole(BaseConsole):
     def __init__(self, selected_agent, encapsulating_console: Cmd):
         super().__init__(encapsulating_console)
         self.selected_agent = selected_agent
-        self.prompt = f"({Color.B}crystal{Color.NC}) {selected_agent['name']} -> {Color.G}{selected_agent['username']}{Color.NC}@{Color.G}{selected_agent['ip_address']}{Color.NC} > "
+        self.prompt = f"\n({Color.B}crystal{Color.NC}) agent {Color.R}{selected_agent['name']}{Color.NC} -> {selected_agent['username']}@{selected_agent['ip_address']} > "
 
     def default(self, command):
         'Default action: Send a shell command to run to the agents queue'
         Api.add_agent_task(self.selected_agent['name'], f"shell {command}")
         success(f"Queued command: {command} to agent {self.selected_agent['name']}")
+        time.sleep(4) # TODO either wait for a signal or make a global variable indicating whether result returned
 
     def do_terminate(self, args):
         'Terminate the agent'
@@ -178,8 +182,8 @@ class CreateAgentConsole(BaseConsole):
     """
     def __init__(self, selected_agent, encapsulating_console: Cmd):
         super().__init__(encapsulating_console)
-        self.selected_agent = selected_agent
-        self.prompt = f"({Color.B}crystal{Color.NC}) {Color.G}agent/{selected_agent['name']}{Color.NC} > "
+        self.selected_agent = selected_agent    
+        self.prompt = f"\n({Color.B}crystal{Color.NC}) {Color.G}agent/{selected_agent['name']}{Color.NC} > "
     
     options = {
         "listener" : {
@@ -230,7 +234,7 @@ class CrystalConsole(BaseConsole):
     """
     Main console
     """
-    prompt = f"({Color.B}crystal{Color.NC}) > "
+    prompt = f"\n({Color.B}crystal{Color.NC}) > "
 
     # print banner
     def do_banner(self, args):
@@ -262,6 +266,16 @@ class CrystalConsole(BaseConsole):
     def complete_createagent(self, text, line, begidx, endidx):
         return [agent['name'] for agent in Api.get_available_agents() if agent['name'].startswith(text)]
 
+# socketio
+def on_message(msg):
+    if type(msg) == str:
+        success("Message received from server:", newline=True)
+        print(msg)
+
+def socket_thread(socketIO):
+    socketIO.on('message', on_message)
+    while True: # <3
+        socketIO.wait(seconds=1)
 
 if __name__ == '__main__':
 
@@ -277,24 +291,37 @@ if __name__ == '__main__':
     success("Reading config from config.yaml")
     with open("config.yaml") as f: 
         data = yaml.load(f, Loader=SafeLoader)
-        LISTEN_PORT = data['listen_port']
-        LISTEN_IP   = data['listen_ip']
+        SERVER_PORT = data['listen_port']
+        SERVER_IP   = data['listen_ip']
         API_BASE    = data['api_base']
 
     if sys.argv[1] == "server":
-        CrystalServer(LISTEN_PORT, LISTEN_IP).cmdloop()
+        """ 
+        Server 
+        """
+        CrystalServer(SERVER_PORT, SERVER_IP).cmdloop()
 
     elif sys.argv[1] == "client":
+        """
+        Client
+        """
         try:
             active_listeners = Api.get_listeners()
-        except:
+            # open socket connection 
+            socketIO = SocketIO(SERVER_IP, SERVER_PORT, logger=False, engineio_logger=False)
+            t = threading.Thread(target = socket_thread, args=[socketIO])
+            t.start() 
+        except Exception as e:
+            print(e)
             failure("Could not connect to server.")
             sys.exit(1)
 
+
         success("Connected to server.")
+        
         if len(active_listeners):
             printinfo(f"Found {len(active_listeners)} active listeners. Type 'listeners' to view them.")
+
         printinfo(f"Starting console...")
-        print()
         CrystalConsole().cmdloop()
         
