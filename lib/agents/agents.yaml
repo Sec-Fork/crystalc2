@@ -2,4 +2,7 @@ powershell:
   name: "windows/unstaged_powershell"
   path: "windows_unstaged_powershell"
   filename: "agent.ps1"
-  payload: "powershell -EncodedCommand REPLACE_BASE64}"
+bash:
+  name: "unix/unstaged_bash"
+  path: "unix_unstaged_bash"
+  filename: "agent.sh"

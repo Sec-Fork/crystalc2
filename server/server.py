@@ -71,6 +71,14 @@ class CrystalServer(Cmd):
         super().__init__()
         self.setup()
 
+    def do_listeners(self, args):
+        'List all listeners'
+        print("IP\t\tPort\tName")
+        print("----------------------------------")
+        with api.app_context():
+            for l in ListenerModel.query.order_by(ListenerModel.id).all():
+                print(f"{l.ip_address}\t{l.port}\t{l.name}")
+
     def setup(self):
         os.makedirs("data", exist_ok=True)
 
@@ -86,72 +94,76 @@ class CrystalServer(Cmd):
         load_modules()
         printinfo(f"Loaded {len(available_agents)} agent modules and {len(available_listeners)} listener modules")
 
+        success("Recreating listeners registered in database")
+        with api.app_context():
+            for l in ListenerModel.query.order_by(ListenerModel.id).all():
+                HttpListener(l.name, l.ip_address, l.port).run_as_daemon()
+
         success("Starting server")
         t = threading.Thread(target = api.run, kwargs={"port":9292})
         t.start() 
         
         printinfo(f"Server running on port {self.port}")
 
-        # TODO: recreate listener in db
+        
+# =======================================================================
+# API
 
-    # =======================================================================
-    # API
+@api.errorhandler(werkzeug.exceptions.InternalServerError)
+def handle_bad_request(e):
+    return 'InternalServerError', 500
 
-    @api.errorhandler(werkzeug.exceptions.InternalServerError)
-    def handle_bad_request(e):
-        return 'InternalServerError', 500
+@api.route("/api/agents/modules", methods=["GET"])
+def available_agents():
+    """
+    Get a list of all available agent modules
+    """
+    return flask.jsonify({
+        'data': [a.serialized for a in available_agents]
+    })
 
-    @api.route("/api/agents/modules", methods=["GET"])
-    def available_agents():
-        """
-        Get a list of all available agent modules
-        """
+
+@api.route("/api/listeners", methods=["GET", "POST"])
+def active_listeners():
+    """
+    GET: Get all active listeners
+    POST: Add a listener to the db and start it
+    """
+    if flask.request.method == "GET":
+
+        listeners = ListenerModel.query.order_by(ListenerModel.id).all()
         return flask.jsonify({
-            'data': [a.serialized for a in available_agents]
+            'data': [l.serialized for l in listeners]
         })
 
 
-    @api.route("/api/listeners", methods=["GET", "POST"])
-    def active_listeners():
-        """
-        GET: Get all active listeners
-        POST: Add a listener to the db and start it
-        """
-        if flask.request.method == "GET":
+    if flask.request.method == "POST":
 
-            listeners = ListenerModel.query.order_by(ListenerModel.id).all()
-            return flask.jsonify({
-                'data': [l.serialized for l in listeners]
-            })
+        name = flask.request.form.get('name')
+        ip_address = flask.request.form.get('ip_address')
+        port = flask.request.form.get('port')
 
+        # check if listener with same ip and port exists
+        if ListenerModel.query.filter_by(ip_address=ip_address, port=port).first():
+            raise InternalServerError
+        else:
+            listener = HttpListener(name, ip_address, port)
 
-        if flask.request.method == "POST":
-
-            name = flask.request.form.get('name')
-            ip_address = flask.request.form.get('ip_address')
-            port = flask.request.form.get('port')
-
-            # check if listener with same ip and port exists
-            if ListenerModel.query.filter_by(ip_address=ip_address, port=port).first():
+            try:
+                listener.run_as_daemon()
+            except:
                 raise InternalServerError
-            else:
-                listener = HttpListener(name, ip_address, port)
 
-                try:
-                    listener.run_as_daemon()
-                except:
-                    raise InternalServerError
+            try:
+                db.session.add(ListenerModel(
+                    name,
+                    ip_address,
+                    port
+                ))
+                db.session.commit()
 
-                try:
-                    db.session.add(ListenerModel(
-                        name,
-                        ip_address,
-                        port
-                    ))
-                    db.session.commit()
+                created = ListenerModel.query.filter_by(ip_address=ip_address, port=port).first()
 
-                    created = ListenerModel.query.filter_by(ip_address=ip_address, port=port).first()
-
-                    return created.serialized
-                except OSError:
-                    raise InternalServerError
+                return created.serialized
+            except OSError:
+                raise InternalServerError

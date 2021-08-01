@@ -117,7 +117,7 @@ class AgentConsole(BaseConsole):
     
     options = {
         "Listener" : {
-            "name": "Listener",
+            "name": "listener",
             "required": True,
             "value": "",
             "description": "Name of the listener to connect back to",
@@ -130,7 +130,7 @@ class AgentConsole(BaseConsole):
         'Show available options'
         for _, o in self.options.items():
             print("Option\t\tCurrent value\t\tRequired\tDescription")
-            print("--------------------------------------------------")
+            print("-------------------------------------------------------------------------------------")
             print(f'{o["name"]}\t{o["value"]}\t\t{o["required"]}\t\t{o["description"]}')
     
     def do_set(self, option):
@@ -140,6 +140,7 @@ class AgentConsole(BaseConsole):
             if option in self.options.keys() and value != '':
                 if self.options[option]["validation"](value):
                     self.options[option]["value"] = value
+                    success(f"Set {self.options[option]['name']} to {value}")
                 else:
                     failure(f"{value} is not a valid option for {self.options[option]['name']}")
         except:
@@ -209,14 +210,15 @@ if __name__ == '__main__':
     elif sys.argv[1] == "client":
         try:
             active_listeners = Api.get_listeners()
-            success("Connected to server.")
-            printinfo(f"Found {len(active_listeners)} active listeners. Type 'listeners' to view them.")
-            printinfo(f"Starting console...")
-            print()
-            CrystalConsole().cmdloop()
         except:
             failure("Could not connect to server.")
             sys.exit(1)
 
+        success("Connected to server.")
+        printinfo(f"Found {len(active_listeners)} active listeners. Type 'listeners' to view them.")
+        printinfo(f"Starting console...")
+        print()
+        CrystalConsole().cmdloop()
+        
     else:
         print("Usage: crystalc2 [server | client]")
