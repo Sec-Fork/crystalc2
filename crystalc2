@@ -135,17 +135,17 @@ class BaseConsole(Cmd):
 
     def do_agents(self, args):
         'List all agents'
-        print("IP\t\tName\tHostname\tUser")
-        print("----------------------------------")
+        print("IP\t\tName\t\tHostname\tUser")
+        print("----------------------------------------------------")
         for a in Api.get_active_agents():
             print(f"{a['ip_address']}\t{a['name']}\t{a['hostname']}\t{a['username']}") # TODO info about session
 
     def do_listeners(self, args):
         'List all listeners'
         print("IP\t\tPort\tName")
-        print("----------------------------------")
+        print("----------------------------------------------------")
         for l in Api.get_listeners():
-            print(f"{l['ip_address']}\t{l['port']}\t{l['name']}")
+            print(f"{l['ip_address']}\t\t{l['port']}\t{l['name']}")
 
     do_EOF = do_exit
     help_EOF = help_exit

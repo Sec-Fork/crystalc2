@@ -102,8 +102,8 @@ class CrystalServer(Cmd):
 
     def do_agents(self, args):
         'List all agents'
-        print("IP\t\tName\tHostname\tUser")
-        print("------------------------------------------------")
+        print("IP\t\tName\t\tHostname\tUser")
+        print("----------------------------------------------------")
         with api.app_context():
             for a in AgentModel.query.order_by(AgentModel.id).all():
                 print(f"{a.ip_address}\t{a.name}\t{a.hostname}\t{a.username}") # TODO info about session
@@ -111,10 +111,10 @@ class CrystalServer(Cmd):
     def do_listeners(self, args):
         'List all listeners'
         print("IP\t\tPort\tName")
-        print("------------------------------------------------")
+        print("----------------------------------------------------")
         with api.app_context():
             for l in ListenerModel.query.order_by(ListenerModel.id).all():
-                print(f"{l.ip_address}\t{l.port}\t{l.name}")
+                print(f"{l.ip_address}\t\t{l.port}\t{l.name}")
 
     def setup(self):
         os.makedirs("data", exist_ok=True)
