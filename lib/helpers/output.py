@@ -17,12 +17,6 @@ def get_random_string(length):
         random_string += (chr(random.randint(97, 97 + 26 - 1)))
     return random_string
 
-def show_options(options: Dict[str, str]):
-    for k, v in options.items():
-        print("Option\t\tCurrent value")
-        print("-----------------------------------------")
-        print(f"{k}\t{v}")
-
 def success(msg, newline=False):
     if newline:
         print()

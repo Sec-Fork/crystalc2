@@ -1,6 +1,8 @@
 from cmd import Cmd
-import os
+from logging import WARNING
+import os, yaml
 import threading, werkzeug
+from yaml.loader import SafeLoader
 
 import flask
 from werkzeug.exceptions import InternalServerError
@@ -17,6 +19,49 @@ api.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///../data/crystalc2.db" # TODO 
 api.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(api)
 migrate = Migrate(api, db)
+
+class ListenerModule:
+    def __init__(self, name, file):
+        self.name = name
+        self.file_path = os.path.join("lib", "listeners", file) # TODO save all paths somewhere centralized
+
+    @property
+    def serialized(self):
+        return {
+            'name': self.name,
+            'file_path': self.file_path
+        }
+
+class AgentModule:
+    def __init__(self, name, path, filename):
+        self.name = name
+        self.file_path = os.path.join("lib", "agents", path, filename) # TODO save all paths somewhere centralized
+        self.generate_script = os.path.join("lib", "agents", path, "generate.py")
+
+    @property
+    def serialized(self):
+        return {
+            'name': self.name,
+            'file_path': self.file_path,
+            'generate_script': self.generate_script
+        }
+
+available_agents: AgentModule = []
+available_listeners: ListenerModule = []
+
+def load_modules():
+    """
+    Read yaml files which contain info on available agents and listeners
+    """
+    with open(os.path.join("lib", "agents", "agents.yaml")) as f: # TODO save all paths somewhere centralized
+        global available_agents
+        data = yaml.load(f, Loader=SafeLoader)
+        available_agents = [AgentModule(data[a]["name"], data[a]["path"], data[a]["filename"]) for a in data]
+
+    with open(os.path.join("lib", "listeners", "listeners.yaml")) as f: # TODO save all paths somewhere centralized
+        global available_listeners
+        data = yaml.load(f, Loader=SafeLoader)
+        available_listeners = [ListenerModule(data[a]["name"], data[a]["file"]) for a in data]
 
 class CrystalServer(Cmd):
     prompt = f"({Color.B}crystal{Color.NC}) {Color.G}server{Color.NC} > "
@@ -37,6 +82,10 @@ class CrystalServer(Cmd):
             db.create_all()
             db.session.commit()
 
+        success("Getting available agent and listener modules")
+        load_modules()
+        printinfo(f"Loaded {len(available_agents)} agent modules and {len(available_listeners)} listener modules")
+
         success("Starting server")
         t = threading.Thread(target = api.run, kwargs={"port":9292})
         t.start() 
@@ -52,11 +101,21 @@ class CrystalServer(Cmd):
     def handle_bad_request(e):
         return 'InternalServerError', 500
 
-    @api.route("/api/listeners", methods=["GET", "POST"])
-    def projects():
+    @api.route("/api/agents/modules", methods=["GET"])
+    def available_agents():
         """
-        GET: Get all listeners
-        POST: Add a listener to the db
+        Get a list of all available agent modules
+        """
+        return flask.jsonify({
+            'data': [a.serialized for a in available_agents]
+        })
+
+
+    @api.route("/api/listeners", methods=["GET", "POST"])
+    def active_listeners():
+        """
+        GET: Get all active listeners
+        POST: Add a listener to the db and start it
         """
         if flask.request.method == "GET":
 

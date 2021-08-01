@@ -1,9 +1,7 @@
 #!/bin/python3
-from server.models import ListenerModel
-from server.server import CrystalServer
-from lib.helpers.encoder import powershell_encode
-import jinja2
-from lib.helpers.output import Color, failure, get_random_string, show_options, success
+from typing import List
+from server.server import AgentModule, CrystalServer
+from lib.helpers.output import Color, failure, get_random_string, printinfo, success
 import os, sys
 import random, requests
 from cmd import Cmd
@@ -27,12 +25,26 @@ API_BASE = "http://127.0.0.1:9292" # TODO read from config
 
 class Api:
     @staticmethod
+    def get_available_agents() -> List[AgentModule]:
+        """
+        Get a list of available agent modules
+        """
+        available_agents = requests.get(f'{API_BASE}/api/agents/modules').json()['data']
+        return available_agents
+
+    @staticmethod
     def get_listeners():
+        """
+        Get active listeners
+        """
         listeners = requests.get(f'{API_BASE}/api/listeners').json()['data']
         return listeners
 
     @staticmethod
     def create_listener(listen_ip="127.0.0.1", port=1337, name=""):
+        """
+        Create a new listener
+        """
         if name == "":
             name = get_random_string(8)
 
@@ -54,9 +66,9 @@ class Api:
 class BaseConsole(Cmd):
     emptyline = lambda x: None
 
-    def __init__(self, encapsulatingConsole = None):
+    def __init__(self, encapsulating_console = None):
         super().__init__()
-        self.encapsulatingConsole = encapsulatingConsole
+        self.encapsulating_console = encapsulating_console
 
     def cmdloop(self):
         try:
@@ -77,75 +89,74 @@ class BaseConsole(Cmd):
         sys.exit(0)
 
     def help_exit(self):
-        print("Exit the console.")
-        print("You can also use the Ctrl-D shortcut.")
+        print("Exit the console. You can also use the Ctrl-D shortcut")
 
     def do_listeners(self, args):
-        """
-        List all listeners
-        """
+        'List all listeners'
         print("IP\t\tPort\tName")
         print("----------------------------------")
         for l in Api.get_listeners():
             print(f"{l['ip_address']}\t{l['port']}\t{l['name']}")
 
-    def help_listeners(self, args):
-        print("List all listeners")
-
-
     do_EOF = do_exit
     help_EOF = help_exit
 
-    # escape subconsole
     def do_back(self, args):
-        if self.encapsulatingConsole:
-            self.encapsulatingConsole.cmdloop()
+        'Go back to the encapsulating console'
+        if self.encapsulating_console:
+            self.encapsulating_console.cmdloop()
         else:
             print(f"{Color.R}[!]{Color.NC} Type 'exit' to exit.")
 
 
-class StagerConsole(BaseConsole):
-    prompt = f"({Color.B}crystal{Color.NC}) {Color.G}createstager{Color.NC} > "
+class AgentConsole(BaseConsole):
+    def __init__(self, selected_agent: str, encapsulating_console: Cmd):
+        super().__init__(encapsulating_console)
+        self.selected_agent = selected_agent
+        self.prompt = f"({Color.B}crystal{Color.NC}) {Color.G}agent/{selected_agent['name']}{Color.NC} > "
     
     options = {
-        "listener": "",
+        "Listener" : {
+            "name": "Listener",
+            "required": True,
+            "value": "",
+            "description": "Name of the listener to connect back to",
+            "validation": lambda x: x in [l['name'] for l in Api.get_listeners()],
+            "completion": lambda x: [l['name'] for l in Api.get_listeners() if l['name'].startswith(x)]
+        }
     }
 
     def do_options(self, args):
-        show_options(self.options)
+        'Show available options'
+        for _, o in self.options.items():
+            print("Option\t\tCurrent value\t\tRequired\tDescription")
+            print("--------------------------------------------------")
+            print(f'{o["name"]}\t{o["value"]}\t\t{o["required"]}\t\t{o["description"]}')
     
-    def help_options(self, args):
-        print("Show available options")
-
     def do_set(self, option):
+        'Set an option'
         try:
             option, value = option.split()
             if option in self.options.keys() and value != '':
-                self.options[option] = value
+                if self.options[option]["validation"](value):
+                    self.options[option]["value"] = value
+                else:
+                    failure(f"{value} is not a valid option for {self.options[option]['name']}")
         except:
             print("Usage: set OPTION VALUE")
 
     def complete_set(self, text, line, begidx, endidx):
-        return [option for option in self.options if option.startswith(text)]
+        try:
+            option, value = text.split()
+            if option in self.options.keys():
+                return self.options[option]["completion"](value)
+        except:
+            return [option for option in self.options if option.startswith(text)]
 
     def do_generate(self, args):
-        # read in powershell agent template
-        templateLoader = jinja2.FileSystemLoader(searchpath="./lib/agents")
-        templateEnv = jinja2.Environment(loader=templateLoader)
-        TEMPLATE_FILE = "agent.ps1"
-        template = templateEnv.get_template(TEMPLATE_FILE)
-
-        # render with listeners ip and port
-        agent_payload = template.render(
-            LISTENER_IP="127.0.0.1", # TODO: read from options
-            LISTENER_PORT=1337            
-        )
-
-        payload = f"powershell -EncodedCommand {powershell_encode(agent_payload)}"
-        print(payload)
-
-    def help_generate(self):
-        print("Generate a payload for the current stager")
+        'Generate a payload for the current module'
+        script = self.selected_agent['generate_script']
+        os.system(f"python3 {script}")
 
 
 class CrystalConsole(BaseConsole):
@@ -156,13 +167,12 @@ class CrystalConsole(BaseConsole):
 
     # print banner
     def do_banner(self, args):
+        'Show a random banner'
         print(get_banner())
-
-    def help_banner(self):
-        print("Show a random banner")
 
     # create listener
     def do_createlistener(self, args):
+        'Create a listener'
         # TODO port, ip etc in subconsole
         try:
             response = Api.create_listener() 
@@ -171,16 +181,19 @@ class CrystalConsole(BaseConsole):
         except ValueError as e:
             failure(e)
             
-    def help_createlistener(self):
-        print("Create a listener")
-
-    # ===============================
-    # create stager
-    def do_createstager(self, args):
-        StagerConsole(self).cmdloop()
-            
-    def help_createlistener(self):
-        print("Create a listener")
+    # create agent
+    def do_createagent(self, selected_agent):
+        'Create an agent'
+        if selected_agent == "" or selected_agent == None:
+            print("Usage: createagent <AGENT_MODULE>")
+        else:
+            # pass agent to subconsole to access options etc
+            for agent in Api.get_available_agents():
+                if agent['name'] == selected_agent:
+                    AgentConsole(agent, self).cmdloop()
+    
+    def complete_createagent(self, text, line, begidx, endidx):
+        return [agent['name'] for agent in Api.get_available_agents() if agent['name'].startswith(text)]
 
 
 if __name__ == '__main__':
@@ -194,7 +207,16 @@ if __name__ == '__main__':
         CrystalServer().cmdloop()
 
     elif sys.argv[1] == "client":
-        CrystalConsole().cmdloop()
+        try:
+            active_listeners = Api.get_listeners()
+            success("Connected to server.")
+            printinfo(f"Found {len(active_listeners)} active listeners. Type 'listeners' to view them.")
+            printinfo(f"Starting console...")
+            print()
+            CrystalConsole().cmdloop()
+        except:
+            failure("Could not connect to server.")
+            sys.exit(1)
 
     else:
         print("Usage: crystalc2 [server | client]")
