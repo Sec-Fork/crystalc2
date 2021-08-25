@@ -173,12 +173,6 @@ class InteractAgentConsole(BaseConsole):
         success(f"Queued command: {command} to agent {self.selected_agent['name']}")
         time.sleep(4) # TODO either wait for a signal or make a global variable indicating whether result returned
 
-    def do_bypass(self, args):
-        'Bypass AMSI on target host'
-        Api.add_agent_task(self.selected_agent['name'], "bp")
-        success(f"Requesting AMSI bypass on agent {self.selected_agent['name']}")
-        time.sleep(4) # TODO either wait for a signal or make a global variable indicating whether result returned
-
     def do_download(self, args):
         'Download a file from the infected host'
         raise NotImplementedError
