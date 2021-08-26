@@ -1,10 +1,14 @@
 from cmd import Cmd
 import os, yaml
 import threading, werkzeug
+from typing import List
+
 from yaml.loader import SafeLoader
 
 import flask, sys
 from werkzeug.exceptions import InternalServerError
+
+from lib.helpers.obfuscation_engine import obfuscate_powershell
 from lib.helpers.output import Color, printinfo, success
 from server.models import *
 import sqlite3
@@ -13,6 +17,8 @@ from lib.listeners.http import HttpListener
 import logging, time
 
 from flask_socketio import SocketIO, emit
+
+from server.models import db
 
 api = flask.Flask(__name__)
 api.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///../data/crystalc2.db" # TODO path
@@ -50,12 +56,25 @@ class AgentModule:
             'generate_script': self.generate_script
         }
 
-available_agents: AgentModule = []
-available_listeners: ListenerModule = []
+class ScriptModule:
+    def __init__(self, name, filename):
+        self.name = name
+        self.file_path = os.path.join("common", "post", filename) # TODO save all paths somewhere centralized
+
+    @property
+    def serialized(self):
+        return {
+            'name': self.name,
+            'file_path': self.file_path,
+        }
+
+available_agents: List[AgentModule] = []
+available_listeners: List[ListenerModule] = []
+available_post_modules: List[ScriptModule] = []
 
 def load_modules():
     """
-    Read yaml files which contain info on available agents and listeners
+    Read yaml files which contain info on available agents, modules and listeners
     """
     with open(os.path.join("lib", "agents", "agents.yaml")) as f: # TODO save all paths somewhere centralized
         global available_agents
@@ -66,6 +85,11 @@ def load_modules():
         global available_listeners
         data = yaml.load(f, Loader=SafeLoader)
         available_listeners = [ListenerModule(data[a]["name"], data[a]["file"]) for a in data]
+
+    with open(os.path.join("common", "post", "modules.yaml")) as f: # TODO save all paths somewhere centralized
+        global available_post_modules
+        data = yaml.load(f, Loader=SafeLoader)
+        available_post_modules = [ScriptModule(data[a]["name"], data[a]["filename"]) for a in data]
 
 class CrystalServer(Cmd):
     def __init__(self, port, ip="0.0.0.0"):
@@ -130,6 +154,7 @@ class CrystalServer(Cmd):
         success("Getting available agent and listener modules")
         load_modules()
         printinfo(f"Loaded {len(available_agents)} agent modules and {len(available_listeners)} listener modules")
+        printinfo(f"Loaded {len(available_post_modules)} post-exploitation modules")
 
         success("Recreating listeners registered in database")
         with api.app_context():
@@ -138,11 +163,10 @@ class CrystalServer(Cmd):
 
         success("Starting server")
         t = threading.Thread(target = socketio.run, args=[api], kwargs={"host":"0.0.0.0","port":9292,"debug":False})
-        t.start() 
-        
+        t.start()
+
         printinfo(f"Server running on port {self.port}")
 
-        
 # =======================================================================
 # API
 
@@ -171,11 +195,11 @@ def broadcast():
 def get_task(agent_name):
     """
     GET: get all unexecuted tasks for this agent
-    POST: add a task to this agent to the db 
+    POST: add a task to this agent to the db
     """
     if flask.request.method == "GET":
 
-        task = TaskModel.query.filter(TaskModel.executing_agent==agent_name, TaskModel.executed==False).first()
+        task = TaskModel.query.filter(TaskModel.executing_agent == agent_name, TaskModel.executed == False).first()
         if task:
             task.executed = True
             db.session.commit()
@@ -185,12 +209,11 @@ def get_task(agent_name):
         else:
             return flask.jsonify({
                 'data': {
-                    'task': '' # no task queued 
+                    'task': ''  # no task queued
                 }
             })
 
     if flask.request.method == "POST":
-
         task = flask.request.form.get('task')
 
         db.session.add(TaskModel(
@@ -219,14 +242,12 @@ def active_agents():
     POST: Add a registered agent to the db
     """
     if flask.request.method == "GET":
-
         agents = AgentModel.query.order_by(AgentModel.id).all()
         return flask.jsonify({
             'data': [a.serialized for a in agents]
         })
 
     if flask.request.method == "POST":
-
         name = flask.request.form.get('name')
         ip_address = flask.request.form.get('ip_address')
         username = flask.request.form.get('username')
@@ -253,12 +274,10 @@ def active_listeners():
     POST: Add a listener to the db and start it
     """
     if flask.request.method == "GET":
-
         listeners = ListenerModel.query.order_by(ListenerModel.id).all()
         return flask.jsonify({
             'data': [l.serialized for l in listeners]
         })
-
 
     if flask.request.method == "POST":
 
@@ -290,3 +309,23 @@ def active_listeners():
                 return created.serialized
             except OSError:
                 raise InternalServerError
+
+@api.route("/api/dl/<script_id>", methods=["GET"])
+def get_script(script_id):
+    """
+    download script, where id is the index of the available post modules array
+    """
+    script: ScriptModule = available_post_modules[int(script_id)]
+    with open(script.file_path, "r") as f:
+        script_string = f.read()
+
+    return (script_string, 200)
+
+@api.route("/api/post/modules", methods=["GET"])
+def get_available_post_modules():
+    """
+    Get a list of all available post exploitation modules
+    """
+    return flask.jsonify({
+        'data': [a.serialized for a in available_post_modules]
+    })

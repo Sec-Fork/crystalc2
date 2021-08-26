@@ -1,0 +1,3 @@
+mimikatz:
+  name: "Invoke-Mimikatz"
+  filename: "Invoke-Mimikatz.ps1"
