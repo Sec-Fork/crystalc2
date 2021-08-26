@@ -1,5 +1,4 @@
 import random
-from typing import Dict
 
 class Color:
     NC = '\033[0m' # no colour
@@ -27,3 +26,6 @@ def failure(msg):
 
 def printinfo(msg):
     print(f"{Color.B}[*] {msg}{Color.NC}", flush=True)
+
+def printlog(msg):
+    print(f"    {msg}", flush=True)

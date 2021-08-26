@@ -9,7 +9,7 @@ import flask, sys
 from werkzeug.exceptions import InternalServerError
 
 from lib.helpers.obfuscation_engine import obfuscate_powershell
-from lib.helpers.output import Color, printinfo, success
+from lib.helpers.output import Color, printinfo, success, printlog
 from server.models import *
 import sqlite3
 from flask_migrate import Migrate
@@ -32,7 +32,7 @@ socketio = SocketIO(api)
 
 class ListenerModule:
     def __init__(self, name, file):
-        self.name = name
+        self.name      = name
         self.file_path = os.path.join("lib", "listeners", file) # TODO save all paths somewhere centralized
 
     @property
@@ -44,8 +44,8 @@ class ListenerModule:
 
 class AgentModule:
     def __init__(self, name, path, filename):
-        self.name = name
-        self.file_path = os.path.join("lib", "agents", path, filename) # TODO save all paths somewhere centralized
+        self.name            = name
+        self.file_path       = os.path.join("lib", "agents", path, filename) # TODO save all paths somewhere centralized
         self.generate_script = os.path.join("lib", "agents", path, "generate.py")
 
     @property
@@ -57,15 +57,21 @@ class AgentModule:
         }
 
 class ScriptModule:
-    def __init__(self, name, filename):
-        self.name = name
-        self.file_path = os.path.join("common", "post", filename) # TODO save all paths somewhere centralized
+    def __init__(self, name, filename, command, os_type, description):
+        self.name        = name
+        self.file_path   = os.path.join("common", "post", filename) # TODO save all paths somewhere centralized
+        self.command     = command
+        self.os_type     = os_type
+        self.description = description
 
     @property
     def serialized(self):
         return {
             'name': self.name,
             'file_path': self.file_path,
+            'command': self.command,
+            'type': self.os_type,
+            'description': self.description
         }
 
 available_agents: List[AgentModule] = []
@@ -89,14 +95,14 @@ def load_modules():
     with open(os.path.join("common", "post", "modules.yaml")) as f: # TODO save all paths somewhere centralized
         global available_post_modules
         data = yaml.load(f, Loader=SafeLoader)
-        available_post_modules = [ScriptModule(data[a]["name"], data[a]["filename"]) for a in data]
+        available_post_modules = [ScriptModule(data[s]["name"], data[s]["filename"], data[s]['command'], data[s]['type'], data[s]["description"]) for s in data]
 
 class CrystalServer(Cmd):
     def __init__(self, port, ip="0.0.0.0"):
         super().__init__()
-        self.port = port
+        self.port      = port
         self.listen_ip = ip
-        self.prompt = f"\n({Color.B}crystal{Color.NC}) {Color.G}server{Color.NC} > "
+        self.prompt    = f"\n({Color.B}crystal{Color.NC}) {Color.G}server{Color.NC} > "
         self.setup()
 
     def do_exit(self, inp):
@@ -143,36 +149,40 @@ class CrystalServer(Cmd):
     def setup(self):
         os.makedirs("data", exist_ok=True)
 
-        success("Connecting to database")
+        printlog("Connecting to database")
         self.con = sqlite3.connect('data/crystalc2.db')
 
-        success("Creating database schema")
+        printlog("Creating database schema")
         with api.app_context():
             db.create_all()
             db.session.commit()
 
-        success("Getting available agent and listener modules")
+        printlog("Getting available agent and listener modules")
         load_modules()
-        printinfo(f"Loaded {len(available_agents)} agent modules and {len(available_listeners)} listener modules")
+        printinfo(f"Loaded {len(available_agents)} agent modules")
+        printinfo(f"Loaded {len(available_listeners)} listener modules")
         printinfo(f"Loaded {len(available_post_modules)} post-exploitation modules")
 
-        success("Recreating listeners registered in database")
         with api.app_context():
-            for l in ListenerModel.query.order_by(ListenerModel.id).all():
-                HttpListener(l.name, l.ip_address, l.port).run_as_daemon()
+            listeners = ListenerModel.query.order_by(ListenerModel.id).all()
+            if listeners:
+                success("Recreating listeners registered in database")
+                for l in ListenerModel.query.order_by(ListenerModel.id).all():
+                    HttpListener(l.name, l.ip_address, l.port).run_as_daemon()
 
-        success("Starting server")
+        printlog("Starting server")
         t = threading.Thread(target = socketio.run, args=[api], kwargs={"host":"0.0.0.0","port":9292,"debug":False})
         t.start()
 
-        printinfo(f"Server running on port {self.port}")
+        success(f"Server running on port {self.port}")
 
 # =======================================================================
 # API
 
 @socketio.on('connect')
 def connected():
-    success("Socket connection received.", newline=True)
+    # success("Socket connection received.", newline=True)
+    pass
 
 # HTTP
 @api.errorhandler(werkzeug.exceptions.InternalServerError)
@@ -235,11 +245,12 @@ def available_agents():
         'data': [a.serialized for a in available_agents]
     })
 
-@api.route("/api/agents", methods=["GET", "POST"])
+@api.route("/api/agents", methods=["GET", "POST", "PUT"])
 def active_agents():
     """
     GET: Get all active agents
     POST: Add a registered agent to the db
+    PUT: rename an agent
     """
     if flask.request.method == "GET":
         agents = AgentModel.query.order_by(AgentModel.id).all()
@@ -247,7 +258,7 @@ def active_agents():
             'data': [a.serialized for a in agents]
         })
 
-    if flask.request.method == "POST":
+    elif flask.request.method == "POST":
         name = flask.request.form.get('name')
         ip_address = flask.request.form.get('ip_address')
         username = flask.request.form.get('username')
@@ -266,6 +277,20 @@ def active_agents():
         created = AgentModel.query.filter_by(name=name).first()
 
         return created.serialized
+
+    elif flask.request.method == "PUT":
+        old_name = flask.request.form.get('old_name')
+        new_name = flask.request.form.get('new_name')
+
+        agent: AgentModel = AgentModel.query.filter_by(name=old_name).first()
+
+        agent.name = new_name
+        db.session.commit()
+
+        socketio.emit('message', f"Agent renamed to {Color.B}{new_name}", broadcast=True)
+        return flask.jsonify({
+            'success': True
+        })
 
 @api.route("/api/listeners", methods=["GET", "POST"])
 def active_listeners():

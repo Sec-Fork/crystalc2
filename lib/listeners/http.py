@@ -71,6 +71,23 @@ def __receive_result(name):
 
     return ('', 204)
 
+@app.route("/rename/<old_name>", methods=['POST'])
+def __rename_agent(old_name):
+    """
+    Route for agents to reregister under a new name
+    """
+    new_name = flask.request.form.get("name")
+
+    requests.put(
+        'http://127.0.0.1:9292/api/agents', # TODO read url from config
+        data={
+            "old_name": old_name,
+            "new_name": new_name
+        }
+    )
+
+    return ('', 204)
+
 
 @app.route("/tasks/<name>", methods=['GET'])
 def __serve_tasks(name):

