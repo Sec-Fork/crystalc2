@@ -101,5 +101,13 @@ def __serve_tasks(name):
     task = r.json()['data']['task']
     return (task, 200)
 
+@app.route("/dl/<id>", methods=['GET'])
+def __cradle(id):
+    r = requests.get(
+        f'http://127.0.0.1:9292/api/dl/{id}', # TODO read url from config
+    )
+    cradle = r.json()['script']
+    return (cradle, 200)
+
 
 

