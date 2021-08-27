@@ -1,8 +1,10 @@
 powershell:
   name: "windows/unstaged_powershell"
   path: "windows_unstaged_powershell"
+  type: "windows"
   filename: "agent.ps1"
 bash:
-  name: "unix/unstaged_bash"
-  path: "unix_unstaged_bash"
+  name: "linux/unstaged_bash"
+  path: "linux_unstaged_bash"
+  type: "linux"
   filename: "agent.sh"

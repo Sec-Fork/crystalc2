@@ -9,6 +9,7 @@ $regl  = ("http" + ':' + "//$ip" + ':' + "$port/reg")
 $data  = @{
     hname = "$hname"
     uname = "$uname"
+    type  = "windows"
 }
 $name  = (Invoke-WebRequest -UseBasicParsing -Uri $regl -Body $data -Method 'POST').Content
 

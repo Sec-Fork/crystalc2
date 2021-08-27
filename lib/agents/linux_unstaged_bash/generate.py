@@ -6,7 +6,7 @@ Simple bash HTTP agent
 
 def generate_payload():
     # read in agent template
-    templateLoader = jinja2.FileSystemLoader(searchpath="./lib/agents/unix_unstaged_bash") # TODO os path join, read central abspath
+    templateLoader = jinja2.FileSystemLoader(searchpath="./lib/agents/linux_unstaged_bash") # TODO os path join, read central abspath
     templateEnv = jinja2.Environment(loader=templateLoader)
     TEMPLATE_FILE = "agent.sh"
     template = templateEnv.get_template(TEMPLATE_FILE)

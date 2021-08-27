@@ -228,7 +228,7 @@ class InteractAgentConsole(BaseConsole):
 
     def do_listmodules(self, text):
         'List all available post-exploitation modules'
-        [print(f"{module['name']}\t\t{module['description']}") for module in Api.get_available_post_modules()]
+        [print(f"{module['name']}\t\t{module['description']}") for module in Api.get_available_post_modules() if module['type'] == self.selected_agent['type']]
 
     def do_module(self, args):
         'Run a post-exploitation module on the infected host'

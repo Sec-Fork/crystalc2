@@ -43,17 +43,19 @@ class ListenerModule:
         }
 
 class AgentModule:
-    def __init__(self, name, path, filename):
+    def __init__(self, name, path, filename, os_type):
         self.name            = name
         self.file_path       = os.path.join("lib", "agents", path, filename) # TODO save all paths somewhere centralized
         self.generate_script = os.path.join("lib", "agents", path, "generate.py")
+        self.os_type         = os_type
 
     @property
     def serialized(self):
         return {
             'name': self.name,
             'file_path': self.file_path,
-            'generate_script': self.generate_script
+            'generate_script': self.generate_script,
+            'type': self.os_type
         }
 
 class ScriptModule:
@@ -85,7 +87,7 @@ def load_modules():
     with open(os.path.join("lib", "agents", "agents.yaml")) as f: # TODO save all paths somewhere centralized
         global available_agents
         data = yaml.load(f, Loader=SafeLoader)
-        available_agents = [AgentModule(data[a]["name"], data[a]["path"], data[a]["filename"]) for a in data]
+        available_agents = [AgentModule(data[a]["name"], data[a]["path"], data[a]["filename"], data[a]["type"]) for a in data]
 
     with open(os.path.join("lib", "listeners", "listeners.yaml")) as f: # TODO save all paths somewhere centralized
         global available_listeners
@@ -263,12 +265,14 @@ def active_agents():
         ip_address = flask.request.form.get('ip_address')
         username = flask.request.form.get('username')
         hostname = flask.request.form.get('hostname')
+        os_type = flask.request.form.get('type')
 
         db.session.add(AgentModel(
             name,
             ip_address,
             username,
-            hostname
+            hostname,
+            os_type
         ))
         db.session.commit()
 
@@ -305,7 +309,6 @@ def active_listeners():
         })
 
     if flask.request.method == "POST":
-
         name = flask.request.form.get('name')
         ip_address = flask.request.form.get('ip_address')
         port = flask.request.form.get('port')
