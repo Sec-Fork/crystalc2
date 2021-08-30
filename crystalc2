@@ -249,7 +249,7 @@ class InteractAgentConsole(BaseConsole):
             module_id += 1
 
     def complete_module(self, text, line, begidx, endidx):
-        return [module['name'] for module in Api.get_available_post_modules() if module['name'].startswith(text)]
+        return [module['name'] for module in Api.get_available_post_modules() if module['name'].startswith(text) and module['type'] == self.selected_agent['type']]
 
     def do_download(self, args):
         'Download a file from the infected host'

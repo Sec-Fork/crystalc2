@@ -28,12 +28,14 @@ migrate = Migrate(api, db)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
+_server_root_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..")
+
 socketio = SocketIO(api)
 
 class ListenerModule:
     def __init__(self, name, file):
         self.name      = name
-        self.file_path = os.path.join("lib", "listeners", file) # TODO save all paths somewhere centralized
+        self.file_path = os.path.join(_server_root_path, "lib", "listeners", file) # TODO save all paths somewhere centralized
 
     @property
     def serialized(self):
@@ -45,8 +47,8 @@ class ListenerModule:
 class AgentModule:
     def __init__(self, name, path, filename, os_type):
         self.name            = name
-        self.file_path       = os.path.join("lib", "agents", path, filename) # TODO save all paths somewhere centralized
-        self.generate_script = os.path.join("lib", "agents", path, "generate.py")
+        self.file_path       = os.path.join(_server_root_path, "lib", "agents", path, filename) # TODO save all paths somewhere centralized
+        self.generate_script = os.path.join(_server_root_path, "lib", "agents", path, "generate.py")
         self.os_type         = os_type
 
     @property
@@ -61,7 +63,7 @@ class AgentModule:
 class ScriptModule:
     def __init__(self, name, filename, command, os_type, description):
         self.name        = name
-        self.file_path   = os.path.join("common", "post", filename) # TODO save all paths somewhere centralized
+        self.file_path   = os.path.join(_server_root_path, "common", "post", filename) # TODO save all paths somewhere centralized
         self.command     = command
         self.os_type     = os_type
         self.description = description
@@ -348,10 +350,15 @@ def get_script(script_id):
     with open(script.file_path, "r") as f:
         script_string = f.read()
 
-    # append command and return
-    return flask.jsonify({
-        'script': f"{script_string}; {script.command}"
-    })
+    if script.os_type == "windows":
+        # append command and return
+        return flask.jsonify({
+            'script': f"{script_string}; {script.command}"
+        })
+    elif script.os_type == "linux":
+        return flask.jsonify({
+            'script': f"{script_string}"
+        })
 
 @api.route("/api/amsi_bypass", methods=["GET"])
 def get_amsi_bypass():
