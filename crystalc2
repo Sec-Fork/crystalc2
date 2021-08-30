@@ -18,12 +18,12 @@ from socketIO_client import SocketIO, LoggingNamespace
 def get_banner():
     banners = [
         f"""{Color.P}
-                              __         .__   
-  ___________ ___.__. _______/  |______  |  |  
-_/ ___\_  __ <   |  |/  ___/\   __\__  \ |  |  
+                              __         .__
+  ___________ ___.__. _______/  |______  |  |
+_/ ___\_  __ <   |  |/  ___/\   __\__  \ |  |
 \  \___|  | \/\___  |\___ \  |  |  / __ \|  |__
  \___  >__|   / ____/____  > |__| (____  /____/
-     \/       \/         \/            \/      
+     \/       \/         \/            \/
 """
     ]
 
@@ -66,7 +66,7 @@ class Api:
         return post_modules
 
     @staticmethod
-    def create_listener(listen_ip="0.0.0.0", port=1337, name=""):
+    def create_listener(listen_ip="0.0.0.0", port=2001, name=""):
         """
         Create a new listener and return that listener as JSON if successfull
         """
@@ -81,7 +81,7 @@ class Api:
                 "port": port
             }
         )
-        
+
         if response.status_code == 500:
             raise ValueError('The listener could not be created.') # TODO create exception class
         else:
@@ -161,7 +161,7 @@ class BaseConsole(Cmd):
             if a["name"] == agent_name:
                 InteractAgentConsole(a, self).cmdloop()
                 return
-        
+
         failure(f"{agent_name} is not an active agent name")
 
     def complete_interact(self, text, line, begidx, endidx):
@@ -275,9 +275,9 @@ class CreateAgentConsole(BaseConsole):
     """
     def __init__(self, selected_agent, encapsulating_console: Cmd):
         super().__init__(encapsulating_console)
-        self.selected_agent = selected_agent    
+        self.selected_agent = selected_agent
         self.prompt = f"\n({Color.B}crystal{Color.NC}) {Color.G}agent/{selected_agent['name']}{Color.NC} > "
-    
+
     options = {
         "listener" : {
             "name": "listener",
@@ -296,7 +296,7 @@ class CreateAgentConsole(BaseConsole):
         for _, o in self.options.items():
             val = o["value"] if o["value"] else "! NOT SET"
             print(f'{o["name"]}\t{val}\t\t{o["required"]}\t\t{o["description"]}')
-    
+
     def do_set(self, option):
         'Set an option'
         try:
@@ -340,12 +340,12 @@ class CrystalConsole(BaseConsole):
         'Create a listener'
         # TODO port, ip etc in subconsole
         try:
-            response = Api.create_listener() 
+            response = Api.create_listener()
             created = response.json()
             success(f"Listener {created['name']} listening on {created['ip_address']}:{created['port']}")
         except ValueError as e:
             failure(e)
-            
+
     # create agent
     def do_createagent(self, selected_agent):
         'Create an agent'
@@ -356,7 +356,7 @@ class CrystalConsole(BaseConsole):
             for agent in Api.get_available_agents():
                 if agent['name'] == selected_agent:
                     CreateAgentConsole(agent, self).cmdloop()
-    
+
     def complete_createagent(self, text, line, begidx, endidx):
         return [agent['name'] for agent in Api.get_available_agents() if agent['name'].startswith(text)]
 
@@ -383,15 +383,15 @@ if __name__ == '__main__':
         sys.exit(1)
 
     printlog("Reading config from config.yaml")
-    with open("config.yaml") as f: 
+    with open("config.yaml") as f:
         data = yaml.load(f, Loader=SafeLoader)
         SERVER_PORT = data['listen_port']
         SERVER_IP   = data['listen_ip']
         API_BASE    = data['api_base']
 
     if sys.argv[1] == "server":
-        """ 
-        Server 
+        """
+        Server
         """
         CrystalServer(SERVER_PORT, SERVER_IP).cmdloop()
 
@@ -401,20 +401,20 @@ if __name__ == '__main__':
         """
         try:
             active_listeners = Api.get_listeners()
-            # open socket connection 
+            # open socket connection
             socketIO = SocketIO(SERVER_IP, SERVER_PORT, logger=False, engineio_logger=False)
             t = threading.Thread(target = socket_thread, args=[socketIO])
-            t.start() 
+            t.start()
         except:
             failure("Could not connect to server.\n")
             sys.exit(1)
 
 
         success("Connected to server.")
-        
+
         if len(active_listeners):
             printinfo(f"Found {len(active_listeners)} active listeners. Type 'listeners' to view them.")
 
         printinfo(f"Starting console...")
         CrystalConsole().cmdloop()
-        
+

