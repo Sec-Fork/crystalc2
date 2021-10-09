@@ -20,3 +20,7 @@ Type `help` or `help <command>` to view the console documentation.
 #### Modules with AMSI bypassing
 ![](doc/amsi.PNG)
 
+#### TODO
+
+- [ ] Use HTTPS listeners instead of HTTP
+- [ ] Add staged payloads
